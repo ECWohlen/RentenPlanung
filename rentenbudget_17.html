@@ -1,0 +1,1585 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rentenbudget & Entnahmeplan</title>
+<link rel="stylesheet" href="https://unpkg.com/@tabler/icons-webfont@3.19.0/tabler-icons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --bg: #f5f4ef;
+    --surface: #ffffff;
+    --surface2: #f9f8f4;
+    --border: rgba(11,11,11,0.10);
+    --border-strong: rgba(11,11,11,0.18);
+    --text: #0b0b0b;
+    --text-sec: #52514e;
+    --text-muted: #898781;
+    --accent: #185FA5;
+    --accent-bg: #E6F1FB;
+    --accent-text: #0C447C;
+    --success: #008300;
+    --success-bg: #EAF3DE;
+    --danger: #d03b3b;
+    --danger-bg: #FCEBEB;
+    --warning: #eda100;
+    --warning-bg: #FAEEDA;
+    --radius: 8px;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111110;
+      --surface: #1e1e1c;
+      --surface2: #252523;
+      --border: rgba(255,255,255,0.10);
+      --border-strong: rgba(255,255,255,0.18);
+      --text: #f5f4ef;
+      --text-sec: #c3c2b7;
+      --text-muted: #898781;
+      --accent: #3987e5;
+      --accent-bg: #0c2340;
+      --accent-text: #85B7EB;
+      --success: #1baf7a;
+      --success-bg: #0a2718;
+      --danger: #e66767;
+      --danger-bg: #2d0e0e;
+      --warning: #fab219;
+      --warning-bg: #2d1e00;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
+  .app { max-width: 960px; margin: 0 auto; padding: 2rem 1rem; }
+  h1 { font-size: 22px; font-weight: 500; margin-bottom: 0.25rem; }
+  .subtitle { font-size: 14px; color: var(--text-sec); margin-bottom: 2rem; }
+
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border-strong); margin-bottom: 2rem; }
+  .tab { padding: 0.6rem 1.25rem; font-size: 14px; font-weight: 500; color: var(--text-sec); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; background: none; border-left: none; border-right: none; border-top: none; transition: color 0.15s; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .card { background: var(--surface); border: 0.5px solid var(--border); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
+  .card-title { font-size: 15px; font-weight: 500; margin-bottom: 1rem; display: flex; align-items: center; gap: 8px; }
+  .card-title i { color: var(--text-muted); font-size: 18px; }
+
+  .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 1.5rem; }
+  .metric { background: var(--surface2); border-radius: var(--radius); padding: 1rem; }
+  .metric-label { font-size: 12px; color: var(--text-muted); margin-bottom: 0.35rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .metric-value { font-size: 22px; font-weight: 500; }
+  .metric-value.accent { color: var(--accent); }
+  .metric-value.success { color: var(--success); }
+  .metric-value.danger { color: var(--danger); }
+
+  .row { display: flex; gap: 1rem; align-items: flex-end; margin-bottom: 0.75rem; flex-wrap: wrap; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 13px; color: var(--text-sec); }
+  .field input, .field select { height: 36px; border: 0.5px solid var(--border-strong); border-radius: var(--radius); padding: 0 10px; font-size: 14px; background: var(--surface); color: var(--text); outline: none; }
+  .field input:focus, .field select:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(24,95,165,0.12); }
+  .field.grow { flex: 1; min-width: 150px; }
+  .field.w120 input { width: 120px; }
+  .field.w100 input { width: 100px; }
+  .field.w80 input { width: 80px; }
+
+  .btn { height: 36px; padding: 0 16px; border: 0.5px solid var(--border-strong); border-radius: var(--radius); font-size: 14px; cursor: pointer; background: var(--surface); color: var(--text); display: inline-flex; align-items: center; gap: 6px; transition: background 0.12s; }
+  .btn:hover { background: var(--surface2); }
+  .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn.primary:hover { opacity: 0.9; }
+  .btn.danger-btn { color: var(--danger); }
+  .btn.danger-btn:hover { background: var(--danger-bg); }
+  .btn.small { height: 30px; padding: 0 10px; font-size: 13px; }
+
+  .budget-list { border: 0.5px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .budget-item { display: grid; grid-template-columns: 1fr 160px 120px 90px 44px; gap: 0; align-items: center; border-bottom: 0.5px solid var(--border); }
+  .budget-item:last-child { border-bottom: none; }
+  .budget-item.header { background: var(--surface2); font-size: 12px; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
+  .budget-item.header > div { padding: 8px 12px; }
+  .budget-item > div { padding: 10px 12px; font-size: 14px; }
+  .budget-item .name-cell { font-weight: 500; display: flex; align-items: center; gap: 8px; }
+  .budget-item .amount { color: var(--text); font-variant-numeric: tabular-nums; }
+  .budget-item .period-badge { font-size: 11px; padding: 2px 7px; border-radius: 4px; background: var(--accent-bg); color: var(--accent-text); font-weight: 500; }
+  .budget-item .period-badge.yearly { background: var(--warning-bg); color: var(--warning); }
+  .budget-item .monthly { font-size: 13px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .budget-item .actions { display: flex; justify-content: flex-end; }
+  .cat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  .category-section { margin-bottom: 1.5rem; }
+  .category-header { font-size: 13px; font-weight: 500; color: var(--text-sec); padding: 6px 0; margin-bottom: 0.5rem; border-bottom: 0.5px solid var(--border); display: flex; justify-content: space-between; }
+  .category-header span { color: var(--text-muted); font-weight: 400; }
+
+  .add-form { background: var(--surface2); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 1rem; margin-top: 1rem; }
+  .add-form-title { font-size: 14px; font-weight: 500; margin-bottom: 0.75rem; }
+
+  .chart-wrap { position: relative; height: 260px; margin-top: 1rem; }
+
+  .summary-bar { display: flex; gap: 0; border: 0.5px solid var(--border); border-radius: var(--radius); overflow: hidden; height: 12px; margin: 0.75rem 0; }
+  .summary-bar-seg { height: 100%; transition: width 0.3s; }
+
+  .withdrawal-result { background: var(--accent-bg); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 1.25rem; margin-top: 1rem; }
+  .withdrawal-result h3 { font-size: 15px; font-weight: 500; color: var(--accent-text); margin-bottom: 1rem; }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 12px; font-size: 12px; color: var(--text-muted); font-weight: 500; border-bottom: 0.5px solid var(--border); background: var(--surface2); }
+  td { padding: 8px 12px; border-bottom: 0.5px solid var(--border); color: var(--text); font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+  td.num { text-align: right; }
+  th.num { text-align: right; }
+
+  .note { font-size: 13px; color: var(--text-muted); margin-top: 0.5rem; line-height: 1.5; }
+
+  .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 600px) { .settings-grid { grid-template-columns: 1fr; } }
+
+  .divider { height: 0.5px; background: var(--border); margin: 1.25rem 0; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--text-sec); margin-top: 0.75rem; }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+  .empty-state { text-align: center; padding: 2rem; color: var(--text-muted); font-size: 14px; }
+  .empty-state i { font-size: 32px; display: block; margin-bottom: 0.5rem; opacity: 0.5; }
+
+  .inv-card { display:flex; flex-direction:column; align-items:center; text-align:center; padding:1rem 0.75rem; border:0.5px solid var(--border-strong); border-radius:12px; cursor:pointer; transition:border-color 0.15s, background 0.15s; background:var(--surface); }
+  .inv-card:hover { background:var(--surface2); }
+  .inv-card.selected { border-color:var(--accent); background:var(--accent-bg); }
+  .inv-icon { font-size:26px; color:var(--text-muted); margin-bottom:0.4rem; }
+  .inv-card.selected .inv-icon { color:var(--accent); }
+  .inv-label { font-size:14px; font-weight:500; margin-bottom:0.25rem; }
+  .inv-desc { font-size:12px; color:var(--text-muted); line-height:1.4; }
+  .inv-pill { height:32px; padding:0 12px; border:0.5px solid var(--border-strong); border-radius:16px; font-size:13px; cursor:pointer; background:var(--surface); color:var(--text-sec); transition:all 0.12s; display:inline-flex; align-items:center; gap:4px; }
+  .inv-pill:hover { background:var(--surface2); color:var(--text); }
+  .inv-pill.active { background:var(--accent-bg); color:var(--accent-text); border-color:var(--accent); font-weight:500; }
+  .etf-card { border:0.5px solid var(--border); border-radius:var(--radius); padding:1rem 1.25rem; margin-bottom:0.75rem; background:var(--surface2); }
+  .etf-header { display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap; margin-bottom:0.5rem; }
+  .etf-name { font-size:15px; font-weight:500; }
+  .etf-isin { font-size:12px; color:var(--text-muted); font-family:monospace; }
+  .etf-tags { display:flex; gap:6px; flex-wrap:wrap; margin-top:0.5rem; }
+  .etf-tag { font-size:11px; padding:2px 8px; border-radius:4px; background:var(--accent-bg); color:var(--accent-text); }
+  .etf-tag.green { background:var(--success-bg); color:var(--success); }
+  .etf-tag.warn { background:var(--warning-bg); color:var(--warning); }
+  .etf-meta { display:flex; gap:1.5rem; flex-wrap:wrap; margin-top:0.6rem; font-size:13px; color:var(--text-sec); }
+  .etf-meta span strong { color:var(--text); }
+  .etf-weight { font-size:20px; font-weight:500; color:var(--accent); white-space:nowrap; }
+  .no-result { text-align:center; padding:2rem; color:var(--text-muted); font-size:14px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1><i class="ti ti-chart-pie" aria-hidden="true"></i> Rentenbudget & Entnahmeplan</h1>
+  <p class="subtitle">Erfasse dein monatliches Budget und berechne die benötigten Assets für die Entnahme im Ruhestand.</p>
+
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('budget')"><i class="ti ti-list-check" aria-hidden="true"></i> Budget</button>
+    <button class="tab" onclick="showTab('withdrawal')"><i class="ti ti-trending-down" aria-hidden="true"></i> Entnahmeplan</button>
+    <button class="tab" onclick="showTab('perpetual')"><i class="ti ti-infinity" aria-hidden="true"></i> Ewige Rente</button>
+    <button class="tab" onclick="showTab('invest')"><i class="ti ti-plant-2" aria-hidden="true"></i> Anlage-Empfehlung</button>
+    <button class="tab" onclick="showTab('settings')"><i class="ti ti-settings" aria-hidden="true"></i> Einstellungen</button>
+  </div>
+
+  <!-- BUDGET TAB -->
+  <div id="tab-budget" class="panel active">
+    <div class="metric-grid" id="budget-metrics"></div>
+
+    <div class="card">
+      <div class="card-title"><i class="ti ti-building-bank" aria-hidden="true"></i> Verfügbare Assets (Startkapital)</div>
+      <div class="row" style="flex-wrap:wrap;gap:1rem;align-items:flex-end">
+        <div class="field" style="flex:1;min-width:180px">
+          <label>Anlagevermögen / investierbares Kapital (CHF)</label>
+          <input type="number" id="b-assets" placeholder="0" step="10000" min="0"
+            oninput="saveAssets();renderBudget()"
+            style="width:100%;height:36px;border:0.5px solid var(--border-strong);border-radius:var(--radius);padding:0 10px;font-size:15px;font-weight:500;background:var(--surface);color:var(--text)" />
+        </div>
+        <div class="field" style="flex:1;min-width:180px">
+          <label>Davon liquide verfügbar (CHF) <span style="font-size:11px;color:var(--text-muted)">optional</span></label>
+          <input type="number" id="b-liquid" placeholder="0" step="10000" min="0"
+            oninput="saveAssets();renderBudget()"
+            style="width:100%;height:36px;border:0.5px solid var(--border-strong);border-radius:var(--radius);padding:0 10px;font-size:14px;background:var(--surface);color:var(--text)" />
+        </div>
+        <div class="field" style="flex:1;min-width:180px">
+          <label>Immobilienwert (CHF) <span style="font-size:11px;color:var(--text-muted)">info, nicht entnahmefähig</span></label>
+          <input type="number" id="b-realestate" placeholder="0" step="10000" min="0"
+            oninput="saveAssets();renderBudget()"
+            style="width:100%;height:36px;border:0.5px solid var(--border-strong);border-radius:var(--radius);padding:0 10px;font-size:14px;background:var(--surface);color:var(--text)" />
+        </div>
+      </div>
+      <div id="asset-coverage" style="margin-top:1rem"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><i class="ti ti-plus" aria-hidden="true"></i> Position hinzufügen</div>
+      <div class="row">
+        <div class="field grow"><label>Bezeichnung</label><input type="text" id="new-name" placeholder="z.B. Miete / Wohnen" /></div>
+        <div class="field"><label>Kategorie</label>
+          <select id="new-cat">
+            <option value="Wohnen" selected>Wohnen</option>
+            <option value="Mobilität">Mobilität</option>
+            <option value="Ernährung">Ernährung</option>
+            <option value="Gesundheit">Gesundheit</option>
+            <option value="Freizeit">Freizeit</option>
+            <option value="Versicherungen">Versicherungen</option>
+            <option value="Kommunikation">Kommunikation</option>
+            <option value="Sonstiges">Sonstiges</option>
+          </select>
+        </div>
+        <div class="field w120"><label>Betrag (CHF)</label><input type="number" id="new-amount" placeholder="0" min="0" step="10" /></div>
+        <div class="field"><label>Periode</label>
+          <select id="new-period">
+            <option value="monthly">monatlich</option>
+            <option value="yearly">jährlich</option>
+          </select>
+        </div>
+        <button class="btn primary" onclick="addItem()"><i class="ti ti-plus" aria-hidden="true"></i> Hinzufügen</button>
+        <button class="btn danger-btn" onclick="resetAmounts()" style="margin-left:auto" title="Alle Beträge auf 0 setzen"><i class="ti ti-eraser" aria-hidden="true"></i> Beträge auf Null</button>
+      </div>
+    </div>
+
+    <div id="budget-list-container"></div>
+
+    <div class="card" style="margin-top:1rem">
+      <div class="card-title"><i class="ti ti-chart-donut" aria-hidden="true"></i> Verteilung nach Kategorie</div>
+      <div class="chart-wrap">
+        <canvas id="catChart" role="img" aria-label="Kreisdiagramm der Budgetverteilung nach Kategorie"></canvas>
+      </div>
+      <div class="legend" id="cat-legend"></div>
+    </div>
+  </div>
+
+  <!-- WITHDRAWAL TAB -->
+  <div id="tab-withdrawal" class="panel">
+    <div class="card">
+      <div class="card-title"><i class="ti ti-calculator" aria-hidden="true"></i> Parameter</div>
+      <div class="settings-grid">
+        <div class="field"><label>Startkapital (CHF) <span id="w-capital-badge" style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--success-bg);color:var(--success);font-weight:500;vertical-align:middle">aus Budget</span></label><input type="number" id="w-capital" placeholder="500000" step="10000" oninput="markManualCapital()" /></div>
+        <div class="field"><label>Monatliches Zielbudget (CHF) <span id="w-budget-badge" style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--success-bg);color:var(--success);font-weight:500;vertical-align:middle">aus Budget</span></label><input type="number" id="w-budget" placeholder="5000" oninput="markManual()" /></div>
+        <div class="field"><label>Jährliche Rendite (%) — nach Kosten</label><input type="number" id="w-return" value="4.0" step="0.1" /></div>
+        <div class="field"><label>Inflationsrate (%)</label><input type="number" id="w-inflation" value="1.5" step="0.1" /></div>
+        <div class="field"><label>Entnahmedauer (Jahre)</label><input type="number" id="w-years" value="25" min="5" max="50" /></div>
+        <div class="field"><label>Restkapital am Ende (CHF)</label><input type="number" id="w-residual" value="0" step="10000" /></div>
+        <div class="field"><label>AHV / PK-Rente monatlich (CHF)</label><input type="number" id="w-pension" value="0" step="100" /></div>
+        <div class="field"><label>Weitere Einkünfte / Monat (CHF) <span style="font-size:11px;color:var(--text-muted)">Miete, 3a, etc.</span></label><input type="number" id="w-other" value="0" step="100" /></div>
+      </div>
+      <div style="margin-top:1rem; display:flex; gap:0.75rem; flex-wrap:wrap;">
+        <button class="btn primary" onclick="calcWithdrawal()"><i class="ti ti-calculator" aria-hidden="true"></i> Berechnen</button>
+        <button class="btn" onclick="syncBudget();calcWithdrawal()"><i class="ti ti-refresh" aria-hidden="true"></i> Budget neu übernehmen</button>
+      </div>
+    </div>
+
+    <div id="withdrawal-result" style="display:none">
+      <div class="metric-grid" id="w-metrics"></div>
+
+      <div class="card">
+        <div class="card-title"><i class="ti ti-chart-line" aria-hidden="true"></i> Vermögensentwicklung</div>
+        <div class="chart-wrap" style="height:280px">
+          <canvas id="wChart" role="img" aria-label="Liniendiagramm der Vermögensentwicklung über die Entnahmedauer"></canvas>
+        </div>
+        <div class="legend" id="w-legend"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><i class="ti ti-table" aria-hidden="true"></i> Jahresübersicht</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Jahr</th><th class="num">Alter</th>
+              <th class="num">Kapital Anfang</th>
+              <th class="num">Rendite</th>
+              <th class="num">Entnahme</th>
+              <th class="num">Kapital Ende</th>
+            </tr></thead>
+            <tbody id="w-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <p class="note" style="margin-top:0.5rem"><i class="ti ti-info-circle" aria-hidden="true"></i> Alle Werte in heutigen CHF (inflationsbereinigt). Rendite nach Kosten; Simulation ohne Steuern auf Kapitalerträge (in der Schweiz in der Regel steuerfrei für Privatanleger).</p>
+    </div>
+  </div>
+
+
+  <!-- PERPETUAL TAB -->
+  <div id="tab-perpetual" class="panel">
+    <div class="card">
+      <div class="card-title"><i class="ti ti-infinity" aria-hidden="true"></i> Ewige Rente — Kapitalerhalt</div>
+      <p style="font-size:13px;color:var(--text-sec);margin-bottom:1.25rem;line-height:1.6">
+        Bei der ewigen Rente wird nur die Rendite entnommen — das Kapital bleibt dauerhaft erhalten und kann vererbt werden.
+        Grundformel: <strong>Entnahme = Kapital × (Rendite − Inflation)</strong>
+      </p>
+      <div class="settings-grid">
+        <div class="field"><label>Vorhandenes Kapital (CHF)</label><input type="number" id="p-capital" placeholder="500000" step="10000" oninput="calcPerpetual()" /></div>
+        <div class="field"><label>Jährliche Rendite (%) — nach Kosten</label><input type="number" id="p-return" value="4.0" step="0.1" oninput="calcPerpetual()" /></div>
+        <div class="field"><label>Inflationsrate (%)</label><input type="number" id="p-inflation" value="1.5" step="0.1" oninput="calcPerpetual()" /></div>
+        <div class="field"><label>AHV / PK-Rente monatlich (CHF)</label><input type="number" id="p-pension" value="0" step="100" oninput="calcPerpetual()" /></div>
+        <div class="field"><label>Weitere Einkünfte / Monat (CHF) <span style="font-size:11px;color:var(--text-muted)">Miete, 3a, etc.</span></label><input type="number" id="p-other" value="0" step="100" oninput="calcPerpetual()" /></div>
+        <div class="field"><label>Monatliches Zielbudget (CHF)</label><input type="number" id="p-budget" placeholder="5000" step="100" oninput="calcPerpetual()" /></div>
+        <div class="field"><label>Simulationsdauer (Jahre, nur für Grafik)</label><input type="number" id="p-years" value="30" min="10" max="60" step="5" oninput="calcPerpetual()" /></div>
+      </div>
+      <div style="margin-top:1rem;display:flex;gap:0.75rem;flex-wrap:wrap">
+        <button class="btn primary" onclick="calcPerpetual()"><i class="ti ti-calculator" aria-hidden="true"></i> Berechnen</button>
+        <button class="btn" onclick="syncBudgetP()"><i class="ti ti-refresh" aria-hidden="true"></i> Budget übernehmen</button>
+      </div>
+    </div>
+
+    <div id="perpetual-result" style="display:none">
+      <div class="metric-grid" id="p-metrics"></div>
+
+      <div id="p-alert" style="display:none;margin-bottom:1rem"></div>
+
+      <div class="card">
+        <div class="card-title"><i class="ti ti-chart-line" aria-hidden="true"></i> Kapitalverlauf (Simulation)</div>
+        <p class="note" style="margin-bottom:0.75rem">Das Kapital bleibt konstant — dargestellt ist der reale Wert nach Inflation über die Simulationsdauer.</p>
+        <div class="chart-wrap" style="height:260px">
+          <canvas id="pChart" role="img" aria-label="Liniendiagramm Kapitalerhalt bei ewiger Rente"></canvas>
+        </div>
+        <div class="legend" id="p-legend"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><i class="ti ti-table" aria-hidden="true"></i> Szenarien-Vergleich</div>
+        <p class="note" style="margin-bottom:0.75rem">Wie viel kannst du monatlich entnehmen je nach Kapital und Rendite — bei vollständigem Kapitalerhalt?</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Kapital</th>
+              <th class="num">Rendite 3%</th>
+              <th class="num">Rendite 4%</th>
+              <th class="num">Rendite 5%</th>
+              <th class="num">Rendite 6%</th>
+            </tr></thead>
+            <tbody id="p-scenario-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><i class="ti ti-target-arrow" aria-hidden="true"></i> Benötigtes Kapital für Zielbudget</div>
+        <div class="metric-grid" id="p-target-metrics"></div>
+        <p class="note" style="margin-top:0.75rem"><i class="ti ti-info-circle" aria-hidden="true"></i> Reale Entnahme = Nominalrendite minus Inflation. In der Schweiz sind Kapitalerträge aus Privatvermögen in der Regel einkommenssteuerfrei.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS TAB -->
+  <div id="tab-settings" class="panel">
+    <div class="card">
+      <div class="card-title"><i class="ti ti-user" aria-hidden="true"></i> Persönliche Angaben</div>
+      <div class="settings-grid">
+        <div class="field"><label>Aktuelles Alter</label><input type="number" id="s-age" value="59" min="18" max="100" /></div>
+        <div class="field"><label>Renteneintritt Alter</label><input type="number" id="s-retire" value="65" min="50" max="75" /></div>
+        <div class="field"><label>Lebenserwartung</label><input type="number" id="s-life" value="90" min="70" max="110" /></div>
+        <div class="field"><label>Währung</label><select id="s-currency"><option value="CHF">CHF</option><option value="EUR">EUR</option></select></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title"><i class="ti ti-download" aria-hidden="true"></i> Daten</div>
+      <div style="display:flex; gap:0.75rem; flex-wrap:wrap">
+        <button class="btn" onclick="exportData()"><i class="ti ti-download" aria-hidden="true"></i> JSON exportieren</button>
+        <button class="btn" onclick="document.getElementById('import-file').click()"><i class="ti ti-upload" aria-hidden="true"></i> JSON importieren</button>
+        <button class="btn" onclick="resetDefaults()"><i class="ti ti-refresh" aria-hidden="true"></i> Standardpositionen wiederherstellen</button>
+        <button class="btn danger-btn" onclick="clearAll()"><i class="ti ti-trash" aria-hidden="true"></i> Alle Daten löschen</button>
+        <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(event)" />
+      </div>
+    </div>
+  </div>
+
+  <!-- INVEST TAB -->
+  <div id="tab-invest" class="panel">
+    <div class="card">
+      <div class="card-title"><i class="ti ti-wand" aria-hidden="true"></i> Strategie-Vorlage <span style="font-size:12px;font-weight:400;color:var(--text-muted)">— wähle eine Vorlage oder stelle manuell ein</span></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px" id="inv-strategy-grid">
+        <label class="inv-card" data-strat="dividend"><input type="radio" name="inv-strat" value="dividend" style="display:none"><div class="inv-icon"><i class="ti ti-cash" aria-hidden="true"></i></div><div class="inv-label">Dividenden-Maximierung</div><div class="inv-desc">Hohe laufende Ausschüttungen via Dividenden-ETFs — ideal für Entnahme ohne Kapitalverkauf</div></label>
+        <label class="inv-card" data-strat="allweather"><input type="radio" name="inv-strat" value="allweather" style="display:none"><div class="inv-icon"><i class="ti ti-cloud-rain" aria-hidden="true"></i></div><div class="inv-label">All-Weather</div><div class="inv-desc">Ray Dalio: 30% Aktien, 40% Anleihen, 15% Gold, 7.5% Commodities, 7.5% kurze Bonds — krisensicher</div></label>
+        <label class="inv-card" data-strat="corecores"><input type="radio" name="inv-strat" value="corecores" style="display:none"><div class="inv-icon"><i class="ti ti-circles-relation" aria-hidden="true"></i></div><div class="inv-label">Core-Satellite</div><div class="inv-desc">70% breites Weltportfolio (Core) + 30% gezielte Satelliten (Tech, Dividenden, Gold)</div></label>
+        <label class="inv-card" data-strat="bogle"><input type="radio" name="inv-strat" value="bogle" style="display:none"><div class="inv-icon"><i class="ti ti-three-bars" aria-hidden="true"></i></div><div class="inv-label">Bogleheads 3-Fonds</div><div class="inv-desc">John Bogle: Welt-Aktien + Heimat-Aktien + Anleihen — simpel, günstig, bewährt</div></label>
+        <label class="inv-card" data-strat="income"><input type="radio" name="inv-strat" value="income" style="display:none"><div class="inv-icon"><i class="ti ti-building-estate" aria-hidden="true"></i></div><div class="inv-label">Income / Rente</div><div class="inv-desc">Stabile Erträge aus Dividenden + REITs + Anleihen — maximaler Cash-Flow für Ruhestand</div></label>
+        <label class="inv-card" data-strat="growth_only"><input type="radio" name="inv-strat" value="growth_only" style="display:none"><div class="inv-icon"><i class="ti ti-trending-up" aria-hidden="true"></i></div><div class="inv-label">Pure Growth</div><div class="inv-desc">100% Aktien, Fokus auf Wachstum und Thesaurierung — für langen Horizont und Nachlassplanung</div></label>
+        <label class="inv-card" data-strat="custom"><input type="radio" name="inv-strat" value="custom" style="display:none"><div class="inv-icon"><i class="ti ti-adjustments-horizontal" aria-hidden="true"></i></div><div class="inv-label">Individuell</div><div class="inv-desc">Manuelle Einstellung aller Parameter ohne Vorlage</div></label>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><i class="ti ti-user-check" aria-hidden="true"></i> Schritt 1 — Anlegertyp &amp; Risikoprofil</div>
+      <div style="margin-bottom:1.25rem">
+        <div style="font-size:13px;color:var(--text-sec);margin-bottom:0.75rem;font-weight:500">Welcher Anlegertyp bist du?</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px" id="inv-type-grid">
+          <label class="inv-card" data-val="conservative"><input type="radio" name="inv-type" value="conservative" style="display:none"><div class="inv-icon"><i class="ti ti-shield" aria-hidden="true"></i></div><div class="inv-label">Konservativ</div><div class="inv-desc">Kapitalerhalt steht im Vordergrund, minimale Wertschwankungen</div></label>
+          <label class="inv-card" data-val="balanced"><input type="radio" name="inv-type" value="balanced" style="display:none"><div class="inv-icon"><i class="ti ti-scale" aria-hidden="true"></i></div><div class="inv-label">Ausgewogen</div><div class="inv-desc">Mischung aus Stabilität und Wachstum, moderate Schwankungen</div></label>
+          <label class="inv-card" data-val="growth"><input type="radio" name="inv-type" value="growth" style="display:none"><div class="inv-icon"><i class="ti ti-trending-up" aria-hidden="true"></i></div><div class="inv-label">Wachstum</div><div class="inv-desc">Rendite im Fokus, höhere Schwankungen werden akzeptiert</div></label>
+          <label class="inv-card" data-val="aggressive"><input type="radio" name="inv-type" value="aggressive" style="display:none"><div class="inv-icon"><i class="ti ti-rocket" aria-hidden="true"></i></div><div class="inv-label">Dynamisch</div><div class="inv-desc">Maximale Rendite, grosse Wertschwankungen möglich</div></label>
+        </div>
+      </div>
+      <div style="margin-bottom:1.25rem">
+        <div style="font-size:13px;color:var(--text-sec);margin-bottom:0.5rem;font-weight:500">Risikobereitschaft — maximaler temporärer Verlust den du tolerierst</div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <input type="range" id="inv-risk" min="5" max="50" value="20" step="5" style="flex:1" oninput="document.getElementById('inv-risk-out').textContent=this.value+'%';updateInvest()">
+          <span id="inv-risk-out" style="font-size:15px;font-weight:500;min-width:44px;color:var(--accent)">20%</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-top:2px"><span>Sehr defensiv</span><span>Sehr offensiv</span></div>
+      </div>
+      <div>
+        <div style="font-size:13px;color:var(--text-sec);margin-bottom:0.5rem;font-weight:500">Anlagehorizont</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap" id="inv-horizon-btns">
+          <button class="inv-pill" data-val="short" onclick="selPill('inv-horizon-btns',this);updateInvest()">bis 5 Jahre</button>
+          <button class="inv-pill active" data-val="medium" onclick="selPill('inv-horizon-btns',this);updateInvest()">5–15 Jahre</button>
+          <button class="inv-pill" data-val="long" onclick="selPill('inv-horizon-btns',this);updateInvest()">15+ Jahre</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><i class="ti ti-world" aria-hidden="true"></i> Schritt 2 — Regionen &amp; Sektoren</div>
+      <div style="margin-bottom:1.25rem">
+        <div style="font-size:13px;color:var(--text-sec);margin-bottom:0.5rem;font-weight:500">Regionen einbeziehen</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap" id="inv-region-btns">
+          <button class="inv-pill active" data-val="world" onclick="togglePill(this);updateInvest()">Welt (global)</button>
+          <button class="inv-pill active" data-val="europe" onclick="togglePill(this);updateInvest()">Europa</button>
+          <button class="inv-pill active" data-val="usa" onclick="togglePill(this);updateInvest()">USA</button>
+          <button class="inv-pill active" data-val="em" onclick="togglePill(this);updateInvest()">Emerging Markets</button>
+          <button class="inv-pill" data-val="asia" onclick="togglePill(this);updateInvest()">Asien / Japan</button>
+          <button class="inv-pill" data-val="ch" onclick="togglePill(this);updateInvest()">Schweiz</button>
+        </div>
+      </div>
+      <div style="margin-bottom:1.25rem">
+        <div style="font-size:13px;color:var(--text-sec);margin-bottom:0.5rem;font-weight:500">Sektoren bevorzugen (optional)</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap" id="inv-sector-btns">
+          <button class="inv-pill" data-val="tech" onclick="togglePill(this);updateInvest()">Technologie</button>
+          <button class="inv-pill" data-val="health" onclick="togglePill(this);updateInvest()">Gesundheit</button>
+          <button class="inv-pill" data-val="finance" onclick="togglePill(this);updateInvest()">Finanzen</button>
+          <button class="inv-pill" data-val="infra" onclick="togglePill(this);updateInvest()">Infrastruktur</button>
+          <button class="inv-pill" data-val="consumer" onclick="togglePill(this);updateInvest()">Konsum</button>
+          <button class="inv-pill" data-val="energy" onclick="togglePill(this);updateInvest()">Energie</button>
+          <button class="inv-pill" data-val="realestate" onclick="togglePill(this);updateInvest()">Immobilien / REITs</button>
+          <button class="inv-pill" data-val="dividend" onclick="togglePill(this);updateInvest()">Dividenden</button>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:13px;color:var(--text-sec);margin-bottom:0.5rem;font-weight:500">Ausschliessen</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap" id="inv-excl-btns">
+          <button class="inv-pill" data-val="no-esg" onclick="togglePill(this);updateInvest()"><i class="ti ti-ban" style="font-size:12px" aria-hidden="true"></i> Waffen / Rüstung</button>
+          <button class="inv-pill" data-val="no-fossil" onclick="togglePill(this);updateInvest()"><i class="ti ti-ban" style="font-size:12px" aria-hidden="true"></i> Fossile Energie</button>
+          <button class="inv-pill" data-val="no-tobacco" onclick="togglePill(this);updateInvest()"><i class="ti ti-ban" style="font-size:12px" aria-hidden="true"></i> Tabak</button>
+          <button class="inv-pill" data-val="esg-only" onclick="togglePill(this);updateInvest()"><i class="ti ti-leaf" style="font-size:12px" aria-hidden="true"></i> Nur ESG / Nachhaltig</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><i class="ti ti-building-bank" aria-hidden="true"></i> Schritt 3 — Assetklassen</div>
+      <div style="font-size:13px;color:var(--text-sec);margin-bottom:0.75rem;font-weight:500">Welche Assetklassen sollen berücksichtigt werden?</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap" id="inv-asset-btns">
+        <button class="inv-pill active" data-val="equity" onclick="togglePill(this);updateInvest()">Aktien</button>
+        <button class="inv-pill active" data-val="bond" onclick="togglePill(this);updateInvest()">Anleihen</button>
+        <button class="inv-pill" data-val="gold" onclick="togglePill(this);updateInvest()">Gold / Rohstoffe</button>
+        <button class="inv-pill" data-val="reit" onclick="togglePill(this);updateInvest()">Immobilien (REITs)</button>
+        <button class="inv-pill" data-val="mixed" onclick="togglePill(this);updateInvest()">Multi-Asset / Mischfonds</button>
+      </div>
+    </div>
+
+    <div id="inv-result" style="display:none">
+      <div class="metric-grid" id="inv-metrics"></div>
+      <div class="card">
+        <div class="card-title"><i class="ti ti-list-details" aria-hidden="true"></i> Empfohlene ETFs</div>
+        <p class="note" style="margin-bottom:1rem"><i class="ti ti-info-circle" aria-hidden="true"></i> Alle aufgeführten ETFs sind UCITS-konform und an europäischen Börsen handelbar. Angaben ohne Gewähr — keine Anlageberatung. Bitte immer auch das aktuelle Factsheet des Anbieters konsultieren.</p>
+        <div id="inv-etf-list"></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="ti ti-chart-donut" aria-hidden="true"></i> Vorgeschlagene Portfoliogewichtung</div>
+        <div class="chart-wrap" style="height:240px"><canvas id="inv-chart" role="img" aria-label="Kreisdiagramm der vorgeschlagenen Portfoliogewichtung"></canvas></div>
+        <div class="legend" id="inv-legend"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const CAT_COLORS = {
+  'Wohnen':        '#2a78d6',
+  'Mobilität':     '#eda100',
+  'Ernährung':     '#008300',
+  'Gesundheit':    '#e34948',
+  'Freizeit':      '#1baf7a',
+  'Versicherungen':'#4a3aa7',
+  'Kommunikation': '#e87ba4',
+  'Sonstiges':     '#898781',
+};
+
+const DEFAULT_ITEMS = [
+  { id: 1,  name: 'Wohnung',                                              amount: 0, cat: 'Wohnen',          period: 'monthly' },
+  { id: 2,  name: 'Steuern',                                              amount: 0, cat: 'Sonstiges',        period: 'monthly' },
+  { id: 3,  name: 'Lebenshaltung',                                        amount: 0, cat: 'Ernährung',        period: 'monthly' },
+  { id: 4,  name: 'Auto + Mobilität',                                     amount: 0, cat: 'Mobilität',        period: 'monthly' },
+  { id: 5,  name: 'Unterhalt Auto',                                       amount: 0, cat: 'Mobilität',        period: 'yearly'  },
+  { id: 6,  name: 'Benzin',                                               amount: 0, cat: 'Mobilität',        period: 'monthly' },
+  { id: 7,  name: 'Telefon / www / Medien',                               amount: 0, cat: 'Kommunikation',    period: 'monthly' },
+  { id: 8,  name: 'Strom',                                                amount: 0, cat: 'Wohnen',           period: 'monthly' },
+  { id: 9,  name: 'AHV / 3. Säule',                                       amount: 0, cat: 'Versicherungen',   period: 'monthly' },
+  { id: 10, name: 'Kasko',                                                amount: 0, cat: 'Versicherungen',   period: 'yearly'  },
+  { id: 11, name: 'SERAFE',                                               amount: 0, cat: 'Kommunikation',    period: 'yearly'  },
+  { id: 12, name: 'Weitere Sachversicherungen',                           amount: 0, cat: 'Versicherungen',   period: 'yearly'  },
+  { id: 13, name: 'Reparaturen Haus & Garten',                           amount: 0, cat: 'Wohnen',           period: 'yearly'  },
+  { id: 14, name: 'Diverses (Kleider, Schuhe, Kosmetik, Geschenke, Luxus)', amount: 0, cat: 'Freizeit',      period: 'monthly' },
+  { id: 15, name: 'Krankenkasse',                                         amount: 0, cat: 'Gesundheit',       period: 'monthly' },
+  { id: 16, name: 'Ferien / Freizeit',                                    amount: 0, cat: 'Freizeit',         period: 'monthly' },
+  { id: 17, name: 'Ausgaben Kinder und anderes',                          amount: 0, cat: 'Sonstiges',        period: 'monthly' },
+  { id: 18, name: 'Sparen',                                               amount: 0, cat: 'Sonstiges',        period: 'monthly' },
+];
+
+const DATA_VERSION = 3;
+const storedVersion = parseInt(localStorage.getItem('rb_version') || '0');
+const stored = localStorage.getItem('rb_items');
+
+let items;
+if (!stored || storedVersion < DATA_VERSION) {
+  // First load or outdated version: always ensure all defaults are present
+  const existing = stored ? JSON.parse(stored) : [];
+  const existingNames = new Set(existing.map(i => i.name));
+  const missing = DEFAULT_ITEMS.filter(d => !existingNames.has(d.name));
+  // Sort: defaults first (in original order), then any custom items added by user
+  const customItems = existing.filter(i => !DEFAULT_ITEMS.some(d => d.name === i.name));
+  // Rebuild: for each default, use saved values if present, else use default
+  items = DEFAULT_ITEMS.map(d => {
+    const saved = existing.find(i => i.name === d.name);
+    return saved ? saved : {...d, id: Date.now() + Math.floor(Math.random()*99999)};
+  }).concat(customItems);
+  localStorage.setItem('rb_items', JSON.stringify(items));
+  localStorage.setItem('rb_version', String(DATA_VERSION));
+} else {
+  items = JSON.parse(stored);
+}
+let settings = JSON.parse(localStorage.getItem('rb_settings') || '{"age":59,"retire":65,"life":90,"currency":"CHF"}');
+let catChartInst = null;
+let wChartInst = null;
+
+function save() {
+  localStorage.setItem('rb_items', JSON.stringify(items));
+  localStorage.setItem('rb_settings', JSON.stringify(settings));
+}
+
+function fmt(n) {
+  return new Intl.NumberFormat('de-CH', {minimumFractionDigits:0, maximumFractionDigits:0}).format(Math.round(n));
+}
+
+function toMonthly(item) {
+  return item.period === 'yearly' ? item.amount / 12 : item.amount;
+}
+
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelector(`#tab-${name}`).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if (name === 'budget') renderBudget();
+  if (name === 'withdrawal') { syncBudget(); calcWithdrawal(); }
+  if (name === 'settings') loadSettings();
+  if (name === 'invest') { updateInvest(); }
+  if (name === 'perpetual') { syncBudgetP(); }
+}
+
+function addItem() {
+  const name = document.getElementById('new-name').value.trim();
+  const amount = parseFloat(document.getElementById('new-amount').value);
+  const cat = document.getElementById('new-cat').value;
+  const period = document.getElementById('new-period').value;
+  if (!name || isNaN(amount) || amount <= 0) { alert('Bitte Bezeichnung und gültigen Betrag eingeben.'); return; }
+  items.push({ id: Date.now(), name, amount, cat, period });
+  save();
+  document.getElementById('new-name').value = '';
+  document.getElementById('new-amount').value = '';
+  renderBudget();
+}
+
+function updateAmount(id, val) {
+  const item = items.find(i => i.id === id);
+  if (item) { item.amount = parseFloat(val) || 0; save(); renderBudget(); }
+}
+
+function updatePeriod(id, val) {
+  const item = items.find(i => i.id === id);
+  if (item) { item.period = val; save(); renderBudget(); }
+}
+
+function removeItem(id) {
+  items = items.filter(i => i.id !== id);
+  save();
+  renderBudget();
+}
+
+function renderBudget() {
+  const total = items.reduce((s, i) => s + toMonthly(i), 0);
+  const yearly = total * 12;
+
+  // Metrics
+  const cats = {};
+  items.forEach(i => { cats[i.cat] = (cats[i.cat] || 0) + toMonthly(i); });
+  const topCat = Object.entries(cats).sort((a,b) => b[1]-a[1])[0];
+
+  const assets = parseFloat(document.getElementById('b-assets')?.value) || settings.assets || 0;
+  const liquid = parseFloat(document.getElementById('b-liquid')?.value) || settings.liquid || 0;
+  const realestate = parseFloat(document.getElementById('b-realestate')?.value) || settings.realestate || 0;
+  const totalWealth = assets + realestate;
+  // Years coverage: assets / yearly budget (rough)
+  const coverageYears = yearly > 0 && assets > 0 ? (assets / yearly).toFixed(1) : null;
+
+  document.getElementById('budget-metrics').innerHTML = `
+    <div class="metric"><div class="metric-label">Monatlich total</div><div class="metric-value accent">CHF ${fmt(total)}</div></div>
+    <div class="metric"><div class="metric-label">Jährlich total</div><div class="metric-value">CHF ${fmt(yearly)}</div></div>
+    <div class="metric"><div class="metric-label">Anlagevermögen</div><div class="metric-value ${assets > 0 ? 'success' : ''}">CHF ${fmt(assets)}</div></div>
+    <div class="metric"><div class="metric-label">Reichweite (grob)</div><div class="metric-value ${coverageYears && parseFloat(coverageYears) >= 20 ? 'success' : coverageYears && parseFloat(coverageYears) >= 10 ? 'accent' : 'danger'}">${coverageYears ? coverageYears + ' Jahre' : '—'}</div></div>
+  `;
+
+  // Coverage bar
+  const coverEl = document.getElementById('asset-coverage');
+  if (coverEl && assets > 0 && yearly > 0) {
+    const pct = Math.min(100, Math.round(assets / (yearly * 25) * 100)); // 25y as 100%
+    const color = pct >= 100 ? 'var(--success)' : pct >= 60 ? 'var(--accent)' : 'var(--danger)';
+    coverEl.innerHTML = `
+      <div style="font-size:13px;color:var(--text-sec);margin-bottom:6px">Kapitalreichweite vs. 25-Jahres-Bedarf (CHF ${fmt(yearly*25)}): <strong style="color:${color}">${pct}%</strong></div>
+      <div style="height:8px;background:var(--surface2);border-radius:4px;overflow:hidden;border:0.5px solid var(--border)">
+        <div style="height:100%;width:${pct}%;background:${color};border-radius:4px;transition:width 0.4s"></div>
+      </div>
+      ${realestate > 0 ? '<div style="font-size:12px;color:var(--text-muted);margin-top:6px"><i class="ti ti-home" aria-hidden="true"></i> Immobilienwert CHF ' + fmt(realestate) + ' (nicht entnahmefähig, aber Teil des Gesamtvermögens CHF ' + fmt(totalWealth) + ')</div>' : ''}
+    `;
+  } else if (coverEl) {
+    coverEl.innerHTML = '<p style="font-size:13px;color:var(--text-muted)">Trage dein Anlagevermögen oben ein um die Kapitalreichweite zu sehen.</p>';
+  }
+
+  // Group by category
+  const catGroups = {};
+  items.forEach(i => { if(!catGroups[i.cat]) catGroups[i.cat]=[]; catGroups[i.cat].push(i); });
+
+  const container = document.getElementById('budget-list-container');
+  if (items.length === 0) {
+    container.innerHTML = `<div class="empty-state"><i class="ti ti-receipt" aria-hidden="true"></i>Noch keine Positionen — füge deine erste Budgetposition hinzu.</div>`;
+  } else {
+    container.innerHTML = Object.entries(catGroups).map(([cat, catItems]) => {
+      const catTotal = catItems.reduce((s,i) => s + toMonthly(i), 0);
+      const color = CAT_COLORS[cat] || '#888';
+      const rows = catItems.map(item => `
+        <div class="budget-item">
+          <div class="name-cell">
+            <span class="cat-dot" style="background:${color}"></span>
+            ${item.name}
+          </div>
+          <div class="amount-cell">
+            <span style="font-size:13px;color:var(--text-muted);margin-right:4px">CHF</span>
+            <input type="number" class="amount-input" value="${item.amount}" min="0" step="10"
+              onchange="updateAmount(${item.id}, this.value)"
+              style="width:100px;height:28px;border:0.5px solid var(--border-strong);border-radius:6px;padding:0 8px;font-size:14px;background:var(--surface);color:var(--text);font-variant-numeric:tabular-nums;" />
+          </div>
+          <div>
+            <select onchange="updatePeriod(${item.id}, this.value)" style="height:28px;border:0.5px solid var(--border-strong);border-radius:6px;padding:0 6px;font-size:13px;background:var(--surface);color:var(--text);">
+              <option value="monthly" ${item.period==='monthly'?'selected':''}>monatlich</option>
+              <option value="yearly"  ${item.period==='yearly' ?'selected':''}>jährlich</option>
+            </select>
+          </div>
+          <div class="monthly" style="text-align:right;font-size:13px;color:var(--text-muted)">
+            ${item.period==='yearly' ? 'CHF '+fmt(item.amount/12)+' /Mt.' : ''}
+          </div>
+          <div class="actions">
+            <button class="btn small danger-btn" onclick="removeItem(${item.id})" aria-label="Entfernen"><i class="ti ti-trash" aria-hidden="true"></i></button>
+          </div>
+        </div>
+      `).join('');
+      return `
+        <div class="category-section">
+          <div class="category-header">
+            <span style="display:flex;align-items:center;gap:8px"><span class="cat-dot" style="background:${color}"></span>${cat}</span>
+            <span>CHF ${fmt(catTotal)} / Mt.</span>
+          </div>
+          <div class="budget-list">
+            <div class="budget-item header"><div>Bezeichnung</div><div>Betrag (CHF)</div><div>Periode</div><div>Monatlich</div><div></div></div>
+            ${rows}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Chart
+  renderCatChart(cats);
+}
+
+function renderCatChart(cats) {
+  const labels = Object.keys(cats);
+  const data = Object.values(cats);
+  const colors = labels.map(l => CAT_COLORS[l] || '#888');
+
+  if (catChartInst) catChartInst.destroy();
+  const ctx = document.getElementById('catChart').getContext('2d');
+  catChartInst = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: getComputedStyle(document.documentElement).getPropertyValue('--surface').trim() || '#fff' }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => ` CHF ${fmt(ctx.raw)} / Mt.` } } },
+      cutout: '60%'
+    }
+  });
+  const legend = document.getElementById('cat-legend');
+  legend.innerHTML = labels.map((l,i) => `<span class="legend-item"><span class="legend-dot" style="background:${colors[i]}"></span>${l}: CHF ${fmt(data[i])}</span>`).join('');
+}
+
+function resetAmounts() {
+  if (confirm('Alle Betragsfelder auf CHF 0 zurücksetzen?')) {
+    items.forEach(i => i.amount = 0);
+    save();
+    renderBudget();
+  }
+}
+
+function markManual() {
+  const badge = document.getElementById('w-budget-badge');
+  if (badge) { badge.textContent = 'manuell'; badge.style.background = 'var(--warning-bg)'; badge.style.color = 'var(--warning)'; }
+}
+
+function syncBudget() {
+  const total = items.reduce((s, i) => s + toMonthly(i), 0);
+  if (total > 0) {
+    document.getElementById('w-budget').value = Math.round(total);
+    const badge = document.getElementById('w-budget-badge');
+    if (badge) { badge.textContent = 'aus Budget'; badge.style.background = 'var(--success-bg)'; badge.style.color = 'var(--success)'; }
+  }
+  // Sync assets
+  const assets = parseFloat(document.getElementById('b-assets')?.value) || 0;
+  if (assets > 0) {
+    document.getElementById('w-capital').value = Math.round(assets);
+    const cb = document.getElementById('w-capital-badge');
+    if (cb) { cb.textContent = 'aus Budget'; cb.style.background = 'var(--success-bg)'; cb.style.color = 'var(--success)'; }
+  }
+}
+
+function saveAssets() {
+  settings.assets = parseFloat(document.getElementById('b-assets')?.value) || 0;
+  settings.liquid = parseFloat(document.getElementById('b-liquid')?.value) || 0;
+  settings.realestate = parseFloat(document.getElementById('b-realestate')?.value) || 0;
+  save();
+}
+
+function markManualCapital() {
+  const cb = document.getElementById('w-capital-badge');
+  if (cb) { cb.textContent = 'manuell'; cb.style.background = 'var(--warning-bg)'; cb.style.color = 'var(--warning)'; }
+}
+
+function calcWithdrawal() {
+  const monthlyBudget = parseFloat(document.getElementById('w-budget').value) || 0;
+  const ret = parseFloat(document.getElementById('w-return').value) / 100;
+  const inf = parseFloat(document.getElementById('w-inflation').value) / 100;
+  const years = parseInt(document.getElementById('w-years').value) || 25;
+  const residual = parseFloat(document.getElementById('w-residual').value) || 0;
+  const pension = (parseFloat(document.getElementById('w-pension').value) || 0) + (parseFloat(document.getElementById('w-other').value) || 0);
+  const retireAge = parseInt(document.getElementById('s-retire')?.value || settings.retire);
+  const availableCapital = parseFloat(document.getElementById('w-capital')?.value) || 0;
+
+  const netMonthly = Math.max(0, monthlyBudget - pension);
+  const netYearly = netMonthly * 12;
+  const realReturn = (1 + ret) / (1 + inf) - 1;
+
+  // Required capital (PV of annuity)
+  let requiredCapital;
+  if (Math.abs(realReturn) < 0.0001) {
+    requiredCapital = netYearly * years + residual;
+  } else {
+    const pvAnnuity = netYearly * (1 - Math.pow(1 + realReturn, -years)) / realReturn;
+    const pvResidual = residual / Math.pow(1 + realReturn, years);
+    requiredCapital = pvAnnuity + pvResidual;
+  }
+
+  // Use actual capital if provided, else required capital
+  const startCapital = availableCapital > 0 ? availableCapital : requiredCapital;
+  const capitalGap = requiredCapital - startCapital;
+  const swr = requiredCapital > 0 ? (netYearly / requiredCapital * 100) : 0;
+
+  // Year-by-year simulation from actual start capital
+  const rows = [];
+  let capital = startCapital;
+  for (let y = 1; y <= years; y++) {
+    const startCap = capital;
+    const infl_factor = Math.pow(1 + inf, y - 1);
+    const withdrawal = netYearly * infl_factor;
+    const returnAmt = startCap * ret;
+    capital = startCap + returnAmt - withdrawal;
+    rows.push({ year: y, age: retireAge + y - 1, start: startCap, ret: returnAmt, withdrawal, end: Math.max(0, capital) });
+  }
+
+  // Capital gap alert
+  let gapHtml = '';
+  if (availableCapital > 0 && Math.abs(capitalGap) > 1000) {
+    if (capitalGap > 0) {
+      gapHtml = `<div style="background:var(--danger-bg);border:0.5px solid var(--border);border-radius:var(--radius);padding:1rem;font-size:14px;color:var(--danger);margin-bottom:1rem">
+        <i class="ti ti-alert-triangle" aria-hidden="true"></i> <strong>Kapitallücke: CHF ${fmt(capitalGap)}</strong> — dein verfügbares Kapital reicht für ${years} Jahre Entnahme nicht aus. Kapital erschöpft ca. ${(() => { const r = rows.find(r => r.end <= 0); return r ? 'Jahr ' + r.year + ' (Alter ' + r.age + ')' : 'innerhalb der Laufzeit'; })()}.
+      </div>`;
+    } else {
+      gapHtml = `<div style="background:var(--success-bg);border:0.5px solid var(--border);border-radius:var(--radius);padding:1rem;font-size:14px;color:var(--success);margin-bottom:1rem">
+        <i class="ti ti-circle-check" aria-hidden="true"></i> <strong>Kapitalüberschuss: CHF ${fmt(-capitalGap)}</strong> — dein Kapital übertrifft den Bedarf. Verbleibendes Kapital nach ${years} Jahren: CHF ${fmt(rows[rows.length-1].end)}.
+      </div>`;
+    }
+  }
+
+  // Metrics
+  document.getElementById('w-metrics').innerHTML = `
+    <div class="metric"><div class="metric-label">Benötigtes Kapital</div><div class="metric-value accent">CHF ${fmt(requiredCapital)}</div></div>
+    <div class="metric"><div class="metric-label">Verfügbares Kapital</div><div class="metric-value ${availableCapital > 0 ? (availableCapital >= requiredCapital ? 'success' : 'danger') : ''}">CHF ${fmt(availableCapital > 0 ? availableCapital : requiredCapital)}</div></div>
+    <div class="metric"><div class="metric-label">Monatliche Entnahme (netto)</div><div class="metric-value">CHF ${fmt(netMonthly)}</div></div>
+    <div class="metric"><div class="metric-label">Entnahmerate (SWR)</div><div class="metric-value ${swr <= 4 ? 'success' : swr <= 5.5 ? 'accent' : 'danger'}">${swr.toFixed(2)} %</div></div>
+  `;
+
+  // Line chart — two datasets if capital differs from required
+  if (wChartInst) wChartInst.destroy();
+  const ctx2 = document.getElementById('wChart').getContext('2d');
+  const datasets = [
+    { label: 'Kapital (effektiv)', data: rows.map(r => Math.round(r.end)), borderColor: '#2a78d6', backgroundColor: 'rgba(42,120,214,0.08)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2 },
+    { label: 'Jährl. Entnahme', data: rows.map(r => Math.round(r.withdrawal)), borderColor: '#e34948', borderDash: [5,4], fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1.5 }
+  ];
+  // Add required-capital reference line if actual differs
+  if (availableCapital > 0 && Math.abs(capitalGap) > 1000) {
+    const reqRows = [];
+    let c2 = requiredCapital;
+    for (let y = 1; y <= years; y++) {
+      const w = netYearly * Math.pow(1 + inf, y - 1);
+      c2 = c2 * (1 + ret) - w;
+      reqRows.push(Math.max(0, Math.round(c2)));
+    }
+    datasets.splice(1, 0, {
+      label: 'Kapital (benötigt)',
+      data: reqRows,
+      borderColor: '#1baf7a',
+      borderDash: [8,4],
+      fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1.5
+    });
+  }
+
+  wChartInst = new Chart(ctx2, {
+    type: 'line',
+    data: { labels: rows.map(r => `${r.year} (${r.age})`), datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => ` CHF ${fmt(ctx.raw)}` } } },
+      scales: {
+        x: { ticks: { maxTicksLimit: 10, color: '#898781', font: {size:11} }, grid: { color: 'rgba(128,128,128,0.12)', lineWidth: 1 } },
+        y: { ticks: { color: '#898781', font: {size:11}, callback: v => 'CHF '+fmt(v) }, grid: { color: 'rgba(128,128,128,0.18)', lineWidth: 1 } }
+      }
+    }
+  });
+
+  const legendItems = [
+    `<span class="legend-item"><span class="legend-dot" style="background:#2a78d6"></span>Kapital effektiv</span>`,
+    availableCapital > 0 && Math.abs(capitalGap) > 1000 ? `<span class="legend-item"><span class="legend-dot" style="background:#1baf7a"></span>Kapital benötigt (Referenz)</span>` : '',
+    `<span class="legend-item"><span class="legend-dot" style="background:#e34948"></span>Jährl. Entnahme (nominal)</span>`
+  ];
+  document.getElementById('w-legend').innerHTML = legendItems.join('');
+
+  // Inject gap alert before result
+  const resultEl = document.getElementById('withdrawal-result');
+  let alertEl = document.getElementById('w-capital-alert');
+  if (!alertEl) { alertEl = document.createElement('div'); alertEl.id = 'w-capital-alert'; resultEl.insertBefore(alertEl, resultEl.firstChild); }
+  alertEl.innerHTML = gapHtml;
+
+  // Table
+  document.getElementById('w-table-body').innerHTML = rows.map(r => `
+    <tr>
+      <td>${r.year}</td><td class="num">${r.age}</td>
+      <td class="num">CHF ${fmt(r.start)}</td>
+      <td class="num" style="color:var(--success)">+ CHF ${fmt(r.ret)}</td>
+      <td class="num" style="color:var(--danger)">− CHF ${fmt(r.withdrawal)}</td>
+      <td class="num" style="${r.end < requiredCapital * 0.2 ? 'color:var(--danger);font-weight:500' : ''}">${r.end > 0 ? 'CHF '+fmt(r.end) : '<span style="color:var(--danger)">Erschöpft</span>'}</td>
+    </tr>
+  `).join('');
+
+  document.getElementById('withdrawal-result').style.display = 'block';
+}
+
+function loadSettings() {
+  document.getElementById('s-age').value = settings.age || 59;
+  document.getElementById('s-retire').value = settings.retire || 65;
+  document.getElementById('s-life').value = settings.life || 90;
+  document.getElementById('s-currency').value = settings.currency || 'CHF';
+  document.getElementById('w-years').value = (settings.life || 90) - (settings.retire || 65);
+}
+
+document.addEventListener('input', e => {
+  if (['s-age','s-retire','s-life','s-currency'].includes(e.target.id)) {
+    settings.age = parseInt(document.getElementById('s-age').value);
+    settings.retire = parseInt(document.getElementById('s-retire').value);
+    settings.life = parseInt(document.getElementById('s-life').value);
+    settings.currency = document.getElementById('s-currency').value;
+    save();
+    if (document.getElementById('s-life').value && document.getElementById('s-retire').value) {
+      const dur = settings.life - settings.retire;
+      if (dur > 0) document.getElementById('w-years').value = dur;
+    }
+  }
+});
+
+function exportData() {
+  const blob = new Blob([JSON.stringify({items, settings}, null, 2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'rentenbudget.json'; a.click();
+}
+
+function importData(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const d = JSON.parse(ev.target.result);
+      if (d.items) items = d.items;
+      if (d.settings) settings = d.settings;
+      save(); renderBudget(); loadSettings();
+      alert('Daten erfolgreich importiert.');
+    } catch { alert('Ungültige JSON-Datei.'); }
+  };
+  reader.readAsText(file);
+}
+
+function resetDefaults() {
+  if (confirm('Standardpositionen wiederherstellen? Bestehende Positionen bleiben erhalten — die Standardpositionen werden ergänzt, falls nicht bereits vorhanden.')) {
+    const existingNames = new Set(items.map(i => i.name));
+    const toAdd = DEFAULT_ITEMS.filter(d => !existingNames.has(d.name));
+    items = [...items, ...toAdd.map(d => ({...d, id: Date.now() + Math.random()}))];
+    save(); renderBudget();
+  }
+}
+
+function clearAll() {
+  if (confirm('Alle Daten löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) {
+    items = []; save(); renderBudget();
+  }
+}
+
+
+
+
+// ============================================================
+// PERPETUAL ANNUITY
+// ============================================================
+let pChartInst = null;
+
+function syncBudgetP() {
+  const total = items.reduce((s, i) => s + toMonthly(i), 0);
+  if (total > 0) document.getElementById('p-budget').value = Math.round(total);
+  const assets = parseFloat(document.getElementById('b-assets')?.value) || settings.assets || 0;
+  if (assets > 0) document.getElementById('p-capital').value = Math.round(assets);
+  calcPerpetual();
+}
+
+function calcPerpetual() {
+  const capital = parseFloat(document.getElementById('p-capital').value) || 0;
+  const ret = parseFloat(document.getElementById('p-return').value) / 100;
+  const inf = parseFloat(document.getElementById('p-inflation').value) / 100;
+  const pension = (parseFloat(document.getElementById('p-pension').value) || 0) + (parseFloat(document.getElementById('p-other').value) || 0);
+  const targetBudget = parseFloat(document.getElementById('p-budget').value) || 0;
+  const simYears = parseInt(document.getElementById('p-years').value) || 30;
+  const retireAge = parseInt(document.getElementById('s-retire')?.value || '65');
+
+  // Real return rate (capital-preserving withdrawal rate)
+  const realRate = ret - inf;
+  const monthlyFromCapital = capital > 0 ? (capital * realRate) / 12 : 0;
+  const totalMonthly = monthlyFromCapital + pension;
+  const gap = targetBudget > 0 ? totalMonthly - targetBudget : null;
+
+  // Required capital for target budget (net of pension)
+  const netTarget = Math.max(0, targetBudget - pension);
+  const requiredCapital = realRate > 0 ? (netTarget * 12) / realRate : 0;
+
+  // Metrics
+  document.getElementById('p-metrics').innerHTML = `
+    <div class="metric"><div class="metric-label">Monatliche Entnahme (aus Kapital)</div><div class="metric-value accent">CHF ${fmt(monthlyFromCapital)}</div></div>
+    <div class="metric"><div class="metric-label">Total monatlich inkl. Rente</div><div class="metric-value ${gap !== null ? (gap >= 0 ? 'success' : 'danger') : ''}">CHF ${fmt(totalMonthly)}</div></div>
+    <div class="metric"><div class="metric-label">Reale Entnahmerate</div><div class="metric-value">${(realRate * 100).toFixed(2)} %</div></div>
+    <div class="metric"><div class="metric-label">Kapitalerhalt</div><div class="metric-value success">dauerhaft</div></div>
+  `;
+
+  // Alert if gap
+  const alertEl = document.getElementById('p-alert');
+  if (gap !== null && Math.abs(gap) > 50) {
+    if (gap < 0) {
+      alertEl.style.display = 'block';
+      alertEl.innerHTML = `<div style="background:var(--danger-bg);border:0.5px solid var(--border);border-radius:var(--radius);padding:1rem;font-size:14px;color:var(--danger)">
+        <i class="ti ti-alert-triangle" aria-hidden="true"></i> <strong>Lücke von CHF ${fmt(Math.abs(gap))}/Mt.</strong> — das Kapital reicht nicht für dein Zielbudget bei vollem Kapitalerhalt.
+        Benötigtes Kapital: <strong>CHF ${fmt(requiredCapital)}</strong> (bei ${(ret*100).toFixed(1)}% Rendite, ${(inf*100).toFixed(1)}% Inflation).
+      </div>`;
+    } else {
+      alertEl.style.display = 'block';
+      alertEl.innerHTML = `<div style="background:var(--success-bg);border:0.5px solid var(--border);border-radius:var(--radius);padding:1rem;font-size:14px;color:var(--success)">
+        <i class="ti ti-circle-check" aria-hidden="true"></i> <strong>Überschuss von CHF ${fmt(gap)}/Mt.</strong> — dein Kapital übertrifft den Bedarf. Das Kapital wächst real sogar noch an.
+      </div>`;
+    }
+  } else {
+    alertEl.style.display = 'none';
+  }
+
+  // Simulation: year-by-year with proper compound growth
+  // Case A (no surplus): only nominal income (= ret) is withdrawn → capital stays flat
+  // Case B (surplus):    only realRate is withdrawn → excess (inf * capital) stays invested → capital grows
+  const years = simYears;
+  const nominalWithdrawalYear = monthlyFromCapital * 12;      // what's actually taken out each year
+  const targetWithdrawalYear  = netTarget * 12;               // what the user needs (may be less)
+  const hasSurplus = gap !== null && gap > 50;
+
+  const simRows = [];
+  let runningCapital = capital;
+  for (let y = 0; y <= years; y++) {
+    // Nominal capital: grows when surplus exists (only inflation-portion reinvested)
+    // Formula: each year capital earns ret%, pays out nominalWithdrawalYear
+    // nominalWithdrawalYear = capital_start × realRate  →  remaining = capital_start × (1 + inf)
+    // So nominal capital compounds at inflation rate when at exact break-even
+    // When surplus: user withdraws less than realRate × capital → more stays invested
+    const nominalCapital = hasSurplus
+      ? capital * Math.pow(1 + ret, y) - (targetWithdrawalYear > 0
+          ? targetWithdrawalYear * (Math.pow(1 + ret, y) - 1) / ret
+          : 0)
+      : capital; // exact break-even: flat nominal
+
+    // Real capital = nominal deflated by inflation
+    const realCapital = nominalCapital / Math.pow(1 + inf, y);
+
+    // Annual withdrawal in real terms
+    const annualWithdrawal = (targetWithdrawalYear > 0 ? targetWithdrawalYear : nominalWithdrawalYear)
+                             / Math.pow(1 + inf, y);
+
+    simRows.push({ year: y, age: retireAge + y, nominal: Math.max(0, nominalCapital), real: Math.max(0, realCapital), withdrawal: annualWithdrawal });
+  }
+
+  // Chart
+  if (pChartInst) pChartInst.destroy();
+  if (capital > 0) {
+    const ctx = document.getElementById('pChart').getContext('2d');
+    const surfaceColor = getComputedStyle(document.documentElement).getPropertyValue('--surface').trim() || '#fff';
+    const finalNominal = simRows[simRows.length-1].nominal;
+    const finalReal    = simRows[simRows.length-1].real;
+
+    pChartInst = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: simRows.map(r => `${r.year}J (${r.age})`),
+        datasets: [
+          {
+            label: 'Kapital nominal',
+            data: simRows.map(r => Math.round(r.nominal)),
+            borderColor: '#2a78d6',
+            backgroundColor: 'rgba(42,120,214,0.07)',
+            fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2
+          },
+          {
+            label: 'Kapital real (Kaufkraft)',
+            data: simRows.map(r => Math.round(r.real)),
+            borderColor: '#1baf7a',
+            borderDash: [6,4], fill: false, tension: 0.3, pointRadius: 0, borderWidth: 2
+          },
+          {
+            label: 'Jährl. Entnahme (real)',
+            data: simRows.map(r => Math.round(r.withdrawal)),
+            borderColor: '#e34948',
+            borderDash: [3,3], fill: false, tension: 0.1, pointRadius: 0, borderWidth: 1.5
+          }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => ' CHF ' + fmt(ctx.raw),
+              afterBody: (items) => {
+                const y = items[0].dataIndex;
+                const row = simRows[y];
+                if (hasSurplus && y > 0) {
+                  const growth = row.nominal - capital;
+                  return growth > 0 ? [`Kapitalwachstum: +CHF ${fmt(growth)}`] : [];
+                }
+                return [];
+              }
+            }
+          }
+        },
+        scales: {
+          x: { ticks: { maxTicksLimit: 8, color: '#898781', font: {size:11} }, grid: { color: 'rgba(128,128,128,0.12)', lineWidth: 1 } },
+          y: { ticks: { color: '#898781', font: {size:11}, callback: v => 'CHF ' + fmt(v) }, grid: { color: 'rgba(128,128,128,0.18)', lineWidth: 1 } }
+        }
+      }
+    });
+
+    const nomLabel = hasSurplus
+      ? `Kapital nominal (wächst auf CHF ${fmt(finalNominal)} nach ${years}J)`
+      : 'Kapital nominal (konstant)';
+    const realLabel = hasSurplus
+      ? `Kapital real / Kaufkraft (CHF ${fmt(finalReal)} nach ${years}J)`
+      : 'Kapital real (Kaufkraft, sinkt durch Inflation)';
+
+    document.getElementById('p-legend').innerHTML = `
+      <span class="legend-item"><span class="legend-dot" style="background:#2a78d6"></span>${nomLabel}</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#1baf7a"></span>${realLabel}</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#e34948"></span>Jährliche Entnahme (real)</span>
+    `;
+  }
+
+  // Scenario table
+  const capitals = [200000, 300000, 500000, 750000, 1000000, 1500000, 2000000];
+  const rates = [0.03, 0.04, 0.05, 0.06];
+  document.getElementById('p-scenario-body').innerHTML = capitals.map(cap => {
+    const cells = rates.map(r => {
+      const rr = r - inf;
+      const monthly = rr > 0 ? (cap * rr) / 12 : 0;
+      const highlight = capital > 0 && Math.abs(cap - capital) < capital * 0.15 && Math.abs(r - ret) < 0.005;
+      return `<td class="num" ${highlight ? 'style="font-weight:500;color:var(--accent)"' : ''}>CHF ${fmt(monthly)}</td>`;
+    }).join('');
+    const isCurrentCap = capital > 0 && Math.abs(cap - capital) < capital * 0.15;
+    return `<tr ${isCurrentCap ? 'style="background:var(--accent-bg)"' : ''}><td>CHF ${fmt(cap)}</td>${cells}</tr>`;
+  }).join('');
+
+  // Target capital metrics
+  document.getElementById('p-target-metrics').innerHTML = `
+    <div class="metric"><div class="metric-label">Benötigt für CHF ${fmt(targetBudget > 0 ? targetBudget : 5000)}/Mt.</div><div class="metric-value accent">CHF ${fmt(requiredCapital > 0 ? requiredCapital : (targetBudget > 0 ? (targetBudget - pension) * 12 / realRate : 0))}</div></div>
+    <div class="metric"><div class="metric-label">Davon aus Kapital (netto)</div><div class="metric-value">CHF ${fmt(netTarget)}/Mt.</div></div>
+    <div class="metric"><div class="metric-label">AHV / Rente</div><div class="metric-value">CHF ${fmt(pension)}/Mt.</div></div>
+    <div class="metric"><div class="metric-label">Entnahmerate real</div><div class="metric-value">${realRate > 0 ? (realRate * 100).toFixed(2) + ' %' : '— (Rendite ≤ Inflation)'}</div></div>
+  `;
+
+  document.getElementById('perpetual-result').style.display = 'block';
+}
+
+
+// ============================================================
+// INVESTMENT STRATEGIES
+// ============================================================
+const STRATEGIES = {
+  dividend: {
+    type: 'balanced', risk: 20, horizon: 'long',
+    regions: ['world','europe','usa'],
+    sectors: ['dividend'],
+    exclusions: [],
+    assets: ['equity','reit'],
+    label: 'Dividenden-Maximierung',
+    desc: 'Fokus auf ausschüttende ETFs mit hoher Dividendenrendite. Ideal für Entnahme ohne Kapitalverkauf. Erwartete Ausschüttung: 2.5–4.5% p.a.',
+    weights: { equity: 70, reit: 30 }
+  },
+  allweather: {
+    type: 'conservative', risk: 15, horizon: 'medium',
+    regions: ['world','usa'],
+    sectors: [],
+    exclusions: [],
+    assets: ['equity','bond','gold'],
+    label: 'All-Weather (Ray Dalio)',
+    desc: 'Krisenfestes Portfolio: 30% Aktien / 40% Anleihen / 15% Gold / 15% Rohstoffe. Ziel: in jeder Wirtschaftsphase positive Rendite.',
+    weights: { equity: 30, bond: 55, gold: 15 }
+  },
+  corecores: {
+    type: 'growth', risk: 25, horizon: 'long',
+    regions: ['world','usa','europe'],
+    sectors: ['tech','dividend'],
+    exclusions: [],
+    assets: ['equity','gold'],
+    label: 'Core-Satellite',
+    desc: '70% Core (MSCI World / FTSE All-World) + 30% Satelliten (Tech, Dividenden, Gold). Kombination von Stabilität und gezielten Renditetreibern.',
+    weights: { equity: 85, gold: 15 }
+  },
+  bogle: {
+    type: 'balanced', risk: 20, horizon: 'medium',
+    regions: ['world','ch','europe'],
+    sectors: [],
+    exclusions: [],
+    assets: ['equity','bond'],
+    label: 'Bogleheads 3-Fonds',
+    desc: 'Klassiker: ~60% Welt-Aktien + ~20% Heimat/Europa-Aktien + ~20% globale Anleihen. Bewährt, günstig, passiv.',
+    weights: { equity: 80, bond: 20 }
+  },
+  income: {
+    type: 'conservative', risk: 15, horizon: 'medium',
+    regions: ['world','europe'],
+    sectors: ['dividend','realestate','infra'],
+    exclusions: [],
+    assets: ['equity','bond','reit'],
+    label: 'Income / Rente',
+    desc: 'Maximaler Cash-Flow für den Ruhestand: Dividenden-ETFs + REITs + Anleihen. Ziel: 3–5% laufende Ausschüttung ohne Kapitalverzehr.',
+    weights: { equity: 45, bond: 25, reit: 30 }
+  },
+  growth_only: {
+    type: 'aggressive', risk: 40, horizon: 'long',
+    regions: ['world','usa','em'],
+    sectors: ['tech'],
+    exclusions: [],
+    assets: ['equity'],
+    label: 'Pure Growth',
+    desc: '100% Aktien, thesaurierend, Fokus auf Wachstum. Für langen Horizont (15+ Jahre) und Nachlassplanung. Höchste Volatilität, höchste Erwartungsrendite.',
+    weights: { equity: 100 }
+  },
+  custom: null
+};
+
+document.querySelectorAll('.inv-card[data-strat]').forEach(card => {
+  card.addEventListener('click', () => {
+    document.querySelectorAll('.inv-card[data-strat]').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+    card.querySelector('input').checked = true;
+    const strat = card.dataset.strat;
+    applyStrategy(strat);
+  });
+});
+
+function applyStrategy(strat) {
+  const s = STRATEGIES[strat];
+  if (!s) return; // custom: do nothing, keep manual settings
+
+  // Show strategy description
+  let descEl = document.getElementById('strat-desc');
+  if (!descEl) {
+    descEl = document.createElement('div');
+    descEl.id = 'strat-desc';
+    descEl.style.cssText = 'margin-top:0.75rem;padding:0.75rem 1rem;background:var(--accent-bg);border-radius:var(--radius);font-size:13px;color:var(--accent-text);line-height:1.6';
+    document.getElementById('inv-strategy-grid').parentElement.appendChild(descEl);
+  }
+  descEl.innerHTML = '<i class="ti ti-info-circle" aria-hidden="true"></i> <strong>' + s.label + ':</strong> ' + s.desc;
+
+  // Set risk slider
+  document.getElementById('inv-risk').value = s.risk;
+  document.getElementById('inv-risk-out').textContent = s.risk + '%';
+
+  // Set horizon
+  document.querySelectorAll('#inv-horizon-btns .inv-pill').forEach(b => {
+    b.classList.toggle('active', b.dataset.val === s.horizon);
+  });
+
+  // Set regions
+  document.querySelectorAll('#inv-region-btns .inv-pill').forEach(b => {
+    b.classList.toggle('active', s.regions.includes(b.dataset.val));
+  });
+
+  // Set sectors
+  document.querySelectorAll('#inv-sector-btns .inv-pill').forEach(b => {
+    b.classList.toggle('active', s.sectors.includes(b.dataset.val));
+  });
+
+  // Set exclusions
+  document.querySelectorAll('#inv-excl-btns .inv-pill').forEach(b => {
+    b.classList.toggle('active', s.exclusions.includes(b.dataset.val));
+  });
+
+  // Set assets
+  document.querySelectorAll('#inv-asset-btns .inv-pill').forEach(b => {
+    b.classList.toggle('active', s.assets.includes(b.dataset.val));
+  });
+
+  // Set investor type card
+  document.querySelectorAll('.inv-card[data-val]').forEach(c => {
+    c.classList.toggle('selected', c.dataset.val === s.type);
+    const radio = c.querySelector('input[type=radio]');
+    if (radio) radio.checked = c.dataset.val === s.type;
+  });
+
+  // Store strategy weights override for buildWeights
+  window._stratWeights = s.weights || null;
+
+  updateInvest();
+}
+
+// ============================================================
+// ETF DATABASE
+// ============================================================
+const ETF_DB = [
+  // GLOBAL EQUITY
+  { id:'vwce', name:'Vanguard FTSE All-World UCITS ETF (Acc)', isin:'IE00B3RBWM25', ter:0.22, type:'equity', regions:['world','usa','europe','em','asia'], sectors:[], esg:false, dist:'acc', desc:'Breites Weltportfolio: ~3 900 Aktien, 50% USA, hohe Diversifikation', profiles:['balanced','growth','aggressive'], horizon:['medium','long'] },
+  { id:'iwda', name:'iShares Core MSCI World UCITS ETF (Acc)', isin:'IE00B4L5Y983', ter:0.20, type:'equity', regions:['world','usa','europe','asia'], sectors:[], esg:false, dist:'acc', desc:'MSCI World: ~1 400 Aktien aus 23 Industrieländern, kein EM', profiles:['balanced','growth','aggressive'], horizon:['medium','long'] },
+  { id:'spyl', name:'SPDR S&P 500 UCITS ETF (Acc)', isin:'IE00B6YX5C33', ter:0.03, type:'equity', regions:['usa'], sectors:[], esg:false, dist:'acc', desc:'S&P 500: 500 grösste US-Unternehmen, tiefste Kosten', profiles:['growth','aggressive'], horizon:['medium','long'] },
+  { id:'cspx', name:'iShares Core S&P 500 UCITS ETF (Acc)', isin:'IE00B5BMR087', ter:0.07, type:'equity', regions:['usa'], sectors:[], esg:false, dist:'acc', desc:'S&P 500 in USD, sehr liquide, gute Replikation', profiles:['growth','aggressive'], horizon:['medium','long'] },
+  { id:'vusa', name:'Vanguard S&P 500 UCITS ETF (Dist)', isin:'IE00B3XXRP09', ter:0.07, type:'equity', regions:['usa'], sectors:[], esg:false, dist:'dist', desc:'S&P 500 mit Ausschüttung — ideal für Entnahmeplan', profiles:['balanced','growth'], horizon:['medium','long'] },
+  // EUROPE
+  { id:'meud', name:'SPDR MSCI Europe UCITS ETF', isin:'IE00B910VR50', ter:0.12, type:'equity', regions:['europe'], sectors:[], esg:false, dist:'acc', desc:'600 europäische Aktien, breite Diversifikation', profiles:['conservative','balanced'], horizon:['medium','long'] },
+  { id:'stoxx', name:'iShares Core EURO STOXX 50 UCITS ETF', isin:'IE0008471009', ter:0.10, type:'equity', regions:['europe'], sectors:[], esg:false, dist:'dist', desc:'50 grösste Eurozone-Unternehmen, hohe Liquidität', profiles:['conservative','balanced'], horizon:['medium','long'] },
+  // SWITZERLAND
+  { id:'cssmi', name:'iShares SMI UCITS ETF (CH)', isin:'CH0008899764', ter:0.35, type:'equity', regions:['ch'], sectors:[], esg:false, dist:'dist', desc:'20 grösste Schweizer Aktien: Nestlé, Novartis, Roche', profiles:['conservative','balanced'], horizon:['medium','long'] },
+  { id:'spi', name:'UBS ETF (CH) SPI (Acc)', isin:'CH0130458182', ter:0.17, type:'equity', regions:['ch'], sectors:[], esg:false, dist:'acc', desc:'Breiter Schweizer Aktienmarkt (~200 Titel)', profiles:['conservative','balanced'], horizon:['medium','long'] },
+  // EMERGING MARKETS
+  { id:'eimi', name:'iShares Core MSCI EM IMI UCITS ETF (Acc)', isin:'IE00BKM4GZ66', ter:0.18, type:'equity', regions:['em'], sectors:[], esg:false, dist:'acc', desc:'~2 800 Titel aus Schwellenländern, inkl. Small Caps', profiles:['growth','aggressive'], horizon:['long'] },
+  { id:'vfem', name:'Vanguard FTSE Emerging Markets UCITS ETF (Dist)', isin:'IE00B3VVMM84', ter:0.22, type:'equity', regions:['em'], sectors:[], esg:false, dist:'dist', desc:'Schwellenländer mit Ausschüttung, Vanguard-Qualität', profiles:['growth','aggressive'], horizon:['long'] },
+  // ASIA
+  { id:'ijpa', name:'iShares Core MSCI Japan IMI UCITS ETF (Acc)', isin:'IE00B4L5YX21', ter:0.15, type:'equity', regions:['asia'], sectors:[], esg:false, dist:'acc', desc:'Breiter japanischer Aktienmarkt', profiles:['balanced','growth'], horizon:['medium','long'] },
+  // BONDS
+  { id:'aggh', name:'iShares Core Global Aggregate Bond UCITS ETF (EUR Hdg)', isin:'IE00BDBRDM35', ter:0.10, type:'bond', regions:['world'], sectors:[], esg:false, dist:'acc', desc:'Globale Anleihen (Staaten + Unternehmen), EUR-gesichert', profiles:['conservative','balanced'], horizon:['short','medium'] },
+  { id:'xeon', name:'Xtrackers II EUR Overnight Rate Swap UCITS ETF', isin:'LU0290358497', ter:0.10, type:'bond', regions:['europe'], sectors:[], esg:false, dist:'acc', desc:'Geldmarkt EUR — Parkmöglichkeit bei kurzen Horizonten', profiles:['conservative'], horizon:['short'] },
+  { id:'ibts', name:'iShares € Govt Bond 1–3yr UCITS ETF', isin:'IE00B14X4Q57', ter:0.15, type:'bond', regions:['europe'], sectors:[], esg:false, dist:'dist', desc:'Kurzlaufende Eurostaatsanleihen — stabil, geringe Zinsrisiken', profiles:['conservative','balanced'], horizon:['short','medium'] },
+  { id:'iusn', name:'iShares Global Govt Bond UCITS ETF (Acc)', isin:'IE00BYZ28V75', ter:0.20, type:'bond', regions:['world'], sectors:[], esg:false, dist:'acc', desc:'Globale Staatsanleihen, breite Streuung', profiles:['conservative','balanced'], horizon:['short','medium'] },
+  // GOLD / COMMODITIES
+  { id:'zgld', name:'UBS ETF (CH) Gold (USD) A-dis', isin:'CH0106027128', ter:0.23, type:'gold', regions:[], sectors:['gold'], esg:false, dist:'dist', desc:'Physisch hinterlegtes Gold, in der Schweiz eingelagert', profiles:['conservative','balanced','growth'], horizon:['medium','long'] },
+  { id:'phgp', name:'Invesco Physical Gold ETC', isin:'IE00B579F325', ter:0.19, type:'gold', regions:[], sectors:['gold'], esg:false, dist:'acc', desc:'Günstigstes physisch besichertes Gold-ETC in EUR', profiles:['conservative','balanced','growth'], horizon:['medium','long'] },
+  { id:'gsco', name:'iShares Diversified Commodity Swap UCITS ETF', isin:'IE00BDFL4P12', ter:0.19, type:'gold', regions:[], sectors:[], esg:false, dist:'acc', desc:'Breiter Rohstoff-Index (Bloomberg Commodity)', profiles:['growth','aggressive'], horizon:['long'] },
+  // REITs
+  { id:'iwdp', name:'iShares Developed Markets Property Yield UCITS ETF', isin:'IE00B1FZS350', ter:0.59, type:'reit', regions:['world'], sectors:['realestate'], esg:false, dist:'dist', desc:'Globale REITs mit Dividendenausschüttung', profiles:['balanced','growth'], horizon:['medium','long'] },
+  { id:'epra', name:'Amundi FTSE EPRA NAREIT Global UCITS ETF (Acc)', isin:'LU1437018838', ter:0.24, type:'reit', regions:['world'], sectors:['realestate'], esg:false, dist:'acc', desc:'Globale Immobilienaktien und REITs, günstig', profiles:['balanced','growth'], horizon:['medium','long'] },
+  // MULTI ASSET
+  { id:'vnga80', name:'Vanguard LifeStrategy 80% Equity UCITS ETF', isin:'IE00BMVB5R75', ter:0.25, type:'mixed', regions:['world'], sectors:[], esg:false, dist:'acc', desc:'80% Aktien / 20% Anleihen, automatisches Rebalancing', profiles:['growth','aggressive'], horizon:['medium','long'] },
+  { id:'vnga60', name:'Vanguard LifeStrategy 60% Equity UCITS ETF', isin:'IE00BMVB5P51', ter:0.25, type:'mixed', regions:['world'], sectors:[], esg:false, dist:'acc', desc:'60% Aktien / 40% Anleihen — klassisches ausgewogenes Portfolio', profiles:['balanced'], horizon:['medium','long'] },
+  { id:'vnga40', name:'Vanguard LifeStrategy 40% Equity UCITS ETF', isin:'IE00BMVB5N37', ter:0.25, type:'mixed', regions:['world'], sectors:[], esg:false, dist:'acc', desc:'40% Aktien / 60% Anleihen — defensives Mischportfolio', profiles:['conservative'], horizon:['short','medium'] },
+
+  // DIVIDEND FOCUSED
+  { id:'qdvd', name:'iShares MSCI World Quality Dividend ESG UCITS ETF', isin:'IE00BYYHSM20', ter:0.38, type:'equity', regions:['world'], sectors:['dividend'], esg:true, dist:'dist', desc:'Qualitätsdividenden weltweit mit ESG-Filter, stabile Ausschüttungen', profiles:['conservative','balanced'], horizon:['medium','long'] },
+  { id:'spyd', name:'SPDR S&P Global Dividend Aristocrats UCITS ETF', isin:'IE00B9CQXS71', ter:0.45, type:'equity', regions:['world','usa','europe'], sectors:['dividend'], esg:false, dist:'dist', desc:'Dividend Aristocrats: mind. 10 Jahre ununterbrochenes Dividendenwachstum', profiles:['conservative','balanced'], horizon:['medium','long'] },
+  { id:'eudv', name:'SPDR S&P Euro Dividend Aristocrats UCITS ETF', isin:'IE00B5M1WJ87', ter:0.30, type:'equity', regions:['europe'], sectors:['dividend'], esg:false, dist:'dist', desc:'Europäische Dividendenaristokraten, hohe laufende Rendite ~4%', profiles:['conservative','balanced'], horizon:['medium','long'] },
+  // BONDS EXTENDED
+  { id:'tips', name:'iShares $ TIPS UCITS ETF (Acc)', isin:'IE00B1FZSF77', ter:0.10, type:'bond', regions:['usa'], sectors:[], esg:false, dist:'acc', desc:'US inflationsgeschützte Anleihen (TIPS) — Schutz vor Inflation', profiles:['conservative','balanced'], horizon:['medium','long'] },
+  { id:'embd', name:'iShares J.P. Morgan $ EM Bond UCITS ETF', isin:'IE00B2NPKV68', ter:0.45, type:'bond', regions:['em'], sectors:[], esg:false, dist:'dist', desc:'Schwellenländer-Anleihen in USD, höhere Rendite als Industrieländer', profiles:['balanced','growth'], horizon:['medium','long'] },
+  // ALL-WEATHER / MULTI-ASSET
+  { id:'xgpx', name:'Xtrackers Portfolio UCITS ETF', isin:'LU0397221945', ter:0.70, type:'mixed', regions:['world'], sectors:[], esg:false, dist:'acc', desc:'Globales Mischportfolio: Aktien, Anleihen, Immobilien — automatisches Rebalancing', profiles:['conservative','balanced'], horizon:['short','medium'] },
+  { id:'gsdy', name:'iShares Gold Producers UCITS ETF', isin:'IE00B6156756', ter:0.55, type:'gold', regions:['world'], sectors:['gold'], esg:false, dist:'dist', desc:'Gold-Minenproduzenten — gehebelte Goldexposition mit Dividenden', profiles:['growth','aggressive'], horizon:['long'] },
+  // INFRASTRUCTURE / INCOME
+  { id:'iqqh', name:'iShares Global Clean Energy UCITS ETF', isin:'IE00B1XNHC34', ter:0.65, type:'equity', regions:['world'], sectors:['energy','infra'], esg:true, dist:'dist', desc:'Erneuerbare Energien global — Saubere Infrastruktur mit Dividenden', profiles:['balanced','growth'], horizon:['long'] },
+  { id:'zprv', name:'SPDR MSCI Europe Small Cap Value Weighted UCITS ETF', isin:'IE00BSPLC298', ter:0.30, type:'equity', regions:['europe'], sectors:[], esg:false, dist:'acc', desc:'Europäische Small-Cap-Value-Aktien — Factor-Investing mit Value-Prämie', profiles:['growth','aggressive'], horizon:['long'] },
+  // SECTOR — TECH
+  { id:'qdve', name:'iShares S&P 500 Information Technology Sector UCITS ETF', isin:'IE00B3WJKG14', ter:0.15, type:'equity', regions:['usa'], sectors:['tech'], esg:false, dist:'acc', desc:'US-Technologie-Sektor (Apple, Microsoft, Nvidia, etc.)', profiles:['growth','aggressive'], horizon:['long'] },
+  { id:'lyms', name:'Amundi MSCI World Information Technology UCITS ETF', isin:'LU1681039261', ter:0.30, type:'equity', regions:['world'], sectors:['tech'], esg:false, dist:'acc', desc:'Globaler Tech-Sektor', profiles:['growth','aggressive'], horizon:['long'] },
+  // SECTOR — HEALTH
+  { id:'qdvh', name:'iShares S&P 500 Health Care Sector UCITS ETF', isin:'IE00B43HR379', ter:0.15, type:'equity', regions:['usa'], sectors:['health'], esg:false, dist:'acc', desc:'US-Gesundheitssektor (Pharma, Biotech, Med-Devices)', profiles:['balanced','growth'], horizon:['medium','long'] },
+  { id:'hmwo', name:'iShares MSCI World Health Care Sector UCITS ETF', isin:'IE00BYGZVL63', ter:0.25, type:'equity', regions:['world'], sectors:['health'], esg:false, dist:'acc', desc:'Globaler Gesundheitssektor', profiles:['balanced','growth'], horizon:['medium','long'] },
+  // SECTOR — DIVIDEND
+  { id:'vhyl', name:'Vanguard FTSE All-World High Dividend Yield UCITS ETF', isin:'IE00B8GKDB10', ter:0.29, type:'equity', regions:['world'], sectors:['dividend'], esg:false, dist:'dist', desc:'~1 800 dividendenstarke Aktien weltweit — ideal für Entnahme', profiles:['conservative','balanced'], horizon:['medium','long'] },
+  { id:'tdiv', name:'VanEck Morningstar Developed Markets Dividend Leaders UCITS ETF', isin:'NL0011683594', ter:0.38, type:'equity', regions:['world','europe'], sectors:['dividend'], esg:false, dist:'dist', desc:'100 dividendenstarke Aktien aus Industrieländern, hohe Ausschüttung', profiles:['conservative','balanced'], horizon:['medium','long'] },
+  // SECTOR — INFRA
+  { id:'infr', name:'iShares Global Infrastructure UCITS ETF', isin:'IE00B1FZS467', ter:0.65, type:'equity', regions:['world'], sectors:['infra'], esg:false, dist:'dist', desc:'Infrastruktur global: Versorger, Mautstrassen, Flughäfen', profiles:['conservative','balanced'], horizon:['medium','long'] },
+  // ESG
+  { id:'suws', name:'UBS MSCI World Socially Responsible UCITS ETF (Acc)', isin:'IE00BK72HJ67', ter:0.22, type:'equity', regions:['world'], sectors:[], esg:true, dist:'acc', desc:'MSCI World SRI — schliesst Waffen, Tabak, Fossile aus', profiles:['balanced','growth'], horizon:['medium','long'] },
+  { id:'esge', name:'iShares MSCI EM ESG Enhanced UCITS ETF', isin:'IE00BFNM3G13', ter:0.18, type:'equity', regions:['em'], sectors:[], esg:true, dist:'acc', desc:'Schwellenländer mit ESG-Filter', profiles:['growth','aggressive'], horizon:['long'] },
+  { id:'vnga60e', name:'Vanguard ESG Global All Cap UCITS ETF (Acc)', isin:'IE00BNG8L278', ter:0.24, type:'equity', regions:['world'], sectors:[], esg:true, dist:'acc', desc:'Globales Aktienportfolio mit strikten ESG-Kriterien, inkl. Small Caps', profiles:['balanced','growth'], horizon:['medium','long'] },
+];
+
+// ============================================================
+// INVEST LOGIC
+// ============================================================
+let invChartInst = null;
+
+function selPill(groupId, btn) {
+  document.querySelectorAll('#'+groupId+' .inv-pill').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function togglePill(btn) {
+  btn.classList.toggle('active');
+}
+
+function getInvProfile() {
+  const typeEl = document.querySelector('input[name="inv-type"]:checked');
+  const type = typeEl ? typeEl.value : 'balanced';
+  const risk = parseInt(document.getElementById('inv-risk').value);
+  const horizon = document.querySelector('#inv-horizon-btns .inv-pill.active')?.dataset?.val || 'medium';
+  const regions = [...document.querySelectorAll('#inv-region-btns .inv-pill.active')].map(b=>b.dataset.val);
+  const sectors = [...document.querySelectorAll('#inv-sector-btns .inv-pill.active')].map(b=>b.dataset.val);
+  const exclusions = [...document.querySelectorAll('#inv-excl-btns .inv-pill.active')].map(b=>b.dataset.val);
+  const assets = [...document.querySelectorAll('#inv-asset-btns .inv-pill.active')].map(b=>b.dataset.val);
+  return { type, risk, horizon, regions, sectors, exclusions, assets };
+}
+
+document.querySelectorAll('.inv-card').forEach(card => {
+  card.addEventListener('click', () => {
+    document.querySelectorAll('.inv-card').forEach(c=>c.classList.remove('selected'));
+    card.classList.add('selected');
+    card.querySelector('input').checked = true;
+    updateInvest();
+  });
+});
+
+function updateInvest() {
+  const p = getInvProfile();
+  const esgOnly = p.exclusions.includes('esg-only');
+  const noEsg = p.exclusions.includes('no-esg') || p.exclusions.includes('no-fossil') || p.exclusions.includes('no-tobacco');
+
+  let candidates = ETF_DB.filter(e => {
+    // Asset class filter
+    if (!p.assets.includes(e.type) && !(e.type==='mixed' && p.assets.includes('mixed'))) return false;
+    // ESG filter
+    if (esgOnly && !e.esg) return false;
+    // Profile fit
+    if (!e.profiles.includes(p.type)) return false;
+    // Horizon fit
+    if (!e.horizon.includes(p.horizon)) return false;
+    // Region: pass if ETF regions overlap with selected, or if no regions (sector/gold)
+    if (e.regions.length > 0 && p.regions.length > 0) {
+      const overlap = e.regions.some(r => p.regions.includes(r));
+      if (!overlap) return false;
+    }
+    // Sector preference: if sectors selected, prefer ETFs in those sectors OR broad ETFs
+    if (p.sectors.length > 0 && e.sectors.length > 0) {
+      if (!e.sectors.some(s => p.sectors.includes(s))) return false;
+    }
+    return true;
+  });
+
+  // Score for relevance
+  candidates = candidates.map(e => {
+    let score = 0;
+    if (e.sectors.length === 0) score += 2; // broad beats narrow unless sectors requested
+    if (p.sectors.length > 0 && e.sectors.some(s=>p.sectors.includes(s))) score += 5;
+    if (p.regions.length > 0 && e.regions.some(r=>p.regions.includes(r))) score += 2;
+    if (e.esg && esgOnly) score += 4;
+    if (e.type === 'mixed' && p.assets.includes('mixed')) score += 3;
+    if (p.type === 'conservative' && e.type === 'bond') score += 2;
+    if ((p.type === 'growth'||p.type==='aggressive') && e.type === 'equity') score += 2;
+    if (p.risk <= 15 && e.type === 'bond') score += 2;
+    if (p.risk >= 35 && e.type === 'equity' && e.sectors.length === 0) score += 2;
+    if (e.dist==='dist' && p.type==='conservative') score += 1;
+    return {...e, score};
+  }).sort((a,b)=>b.score-a.score);
+
+  // Limit to max 8, avoid duplicates by type
+  const seen = {};
+  const result = [];
+  for (const e of candidates) {
+    const key = e.type + (e.sectors[0]||'') + (e.regions[0]||'');
+    if (!seen[key] && result.length < 8) { seen[key]=true; result.push(e); }
+  }
+
+  // Build allocation weights
+  const weights = buildWeights(p, result);
+
+  // Render metrics
+  const avgTer = result.length ? result.reduce((s,e)=>s+e.ter,0)/result.length : 0;
+  const riskLabel = p.risk <= 15 ? 'Defensiv' : p.risk <= 25 ? 'Moderat' : p.risk <= 35 ? 'Ausgewogen' : 'Offensiv';
+  document.getElementById('inv-metrics').innerHTML = `
+    <div class="metric"><div class="metric-label">Empfohlene ETFs</div><div class="metric-value accent">${result.length}</div></div>
+    <div class="metric"><div class="metric-label">Ø TER (Kosten)</div><div class="metric-value">${avgTer.toFixed(2)} %</div></div>
+    <div class="metric"><div class="metric-label">Risikoprofil</div><div class="metric-value" style="font-size:16px">${riskLabel}</div></div>
+    <div class="metric"><div class="metric-label">Anlagehorizont</div><div class="metric-value" style="font-size:16px">${p.horizon==='short'?'< 5 J.':p.horizon==='medium'?'5–15 J.':'15+ J.'}</div></div>
+  `;
+
+  // Render ETF cards
+  const listEl = document.getElementById('inv-etf-list');
+  if (result.length === 0) {
+    listEl.innerHTML = '<div class="no-result"><i class="ti ti-mood-empty" aria-hidden="true"></i><br>Keine passenden ETFs — bitte Filter anpassen.</div>';
+  } else {
+    listEl.innerHTML = result.map((e,i) => {
+      const w = weights[i] || 0;
+      const typeLabel = {equity:'Aktien',bond:'Anleihen',gold:'Gold/Rohst.',reit:'REITs',mixed:'Multi-Asset'}[e.type]||e.type;
+      return `<div class="etf-card">
+        <div class="etf-header">
+          <div>
+            <div class="etf-name">${e.name}</div>
+            <div class="etf-isin">ISIN: ${e.isin}</div>
+          </div>
+          <div class="etf-weight">${w}%</div>
+        </div>
+        <div style="font-size:13px;color:var(--text-sec);line-height:1.5">${e.desc}</div>
+        <div class="etf-tags">
+          <span class="etf-tag">${typeLabel}</span>
+          <span class="etf-tag">TER ${e.ter}%</span>
+          <span class="etf-tag ${e.dist==='dist'?'green':''}">${e.dist==='dist'?'Ausschüttend':'Thesaurierend'}</span>
+          ${e.esg?'<span class="etf-tag green"><i class="ti ti-leaf" style="font-size:11px" aria-hidden="true"></i> ESG</span>':''}
+          ${e.regions.includes('ch')?'<span class="etf-tag warn">CH-Domizil</span>':''}
+        </div>
+        <div class="etf-meta">
+          ${e.regions.length?'<span>Region: <strong>'+e.regions.join(', ')+'</strong></span>':''}
+          ${e.sectors.length?'<span>Sektor: <strong>'+e.sectors.join(', ')+'</strong></span>':''}
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // Pie chart
+  renderInvChart(result, weights);
+  document.getElementById('inv-result').style.display = 'block';
+}
+
+function buildWeights(p, etfs) {
+  if (!etfs.length) return [];
+  const stratW = window._stratWeights || null;
+
+  // ── Assetklassen-Zielallokation ──────────────────────────────────────────
+  let typeAlloc = {};
+  if (stratW) {
+    typeAlloc = stratW;
+  } else if (p.type==='conservative') { typeAlloc = {equity:30, bond:50, gold:10, reit:5, mixed:5}; }
+  else if (p.type==='balanced')       { typeAlloc = {equity:55, bond:25, gold:5, reit:10, mixed:5}; }
+  else if (p.type==='growth')         { typeAlloc = {equity:75, bond:10, gold:5, reit:5, mixed:5}; }
+  else                                 { typeAlloc = {equity:90, bond:0,  gold:5, reit:5, mixed:0}; }
+
+  // ── Gruppen nach Typ ─────────────────────────────────────────────────────
+  const byType = {};
+  etfs.forEach((e,i) => { if(!byType[e.type]) byType[e.type]=[]; byType[e.type].push(i); });
+  const presentTypes = Object.keys(byType);
+  const totalAlloc = presentTypes.reduce((s,t) => s+(typeAlloc[t]||0), 0) || 100;
+
+  // ── Innerhalb jedes Typs: Core vs. Satellite ─────────────────────────────
+  // Core = breites Weltportfolio (sectors leer, regions enthält 'world')
+  // Satellite = Sektor- oder Regions-ETFs
+  // Verteilung: 1 Core → ~60-70% des Typbudgets; 2 Cores → 50/50;
+  //             Satellites teilen sich den Rest gleichmässig
+  const weights = new Array(etfs.length).fill(0);
+
+  presentTypes.forEach(t => {
+    const typeShare = Math.round((typeAlloc[t]||0) / totalAlloc * 100);
+    if (typeShare === 0) return;
+    const idxs = byType[t];
+
+    // Classify each ETF in this type as core or satellite
+    const cores = idxs.filter(i => etfs[i].sectors.length === 0 && etfs[i].regions.includes('world'));
+    const satellites = idxs.filter(i => !cores.includes(i));
+
+    if (cores.length === 0) {
+      // All satellites: equal split
+      const perEtf = Math.floor(typeShare / idxs.length);
+      idxs.forEach(i => weights[i] = perEtf);
+    } else if (satellites.length === 0) {
+      // All cores: equal split
+      const perEtf = Math.floor(typeShare / cores.length);
+      cores.forEach(i => weights[i] = perEtf);
+    } else {
+      // Core gets 65% of typeShare, satellites share 35%
+      const coreTotal = Math.round(typeShare * 0.65);
+      const satTotal  = typeShare - coreTotal;
+      const perCore = Math.floor(coreTotal / cores.length);
+      const perSat  = Math.floor(satTotal  / Math.max(satellites.length, 1));
+      cores.forEach(i      => weights[i] = perCore);
+      satellites.forEach(i => weights[i] = perSat);
+    }
+  });
+
+  // ── Rundungsfehler auf den ETF mit dem grössten Gewicht addieren ─────────
+  const total = weights.reduce((s,w) => s+w, 0);
+  if (total !== 100 && weights.length) {
+    const maxIdx = weights.indexOf(Math.max(...weights));
+    weights[maxIdx] += (100 - total);
+  }
+
+  return weights;
+}
+
+function renderInvChart(etfs, weights) {
+  if (invChartInst) invChartInst.destroy();
+  if (!etfs.length) return;
+  const colors = ['#2a78d6','#eda100','#008300','#e34948','#1baf7a','#4a3aa7','#e87ba4','#898781'];
+  const ctx = document.getElementById('inv-chart').getContext('2d');
+  const surfaceColor = getComputedStyle(document.documentElement).getPropertyValue('--surface').trim() || '#fff';
+  invChartInst = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: etfs.map(e=>e.name.substring(0,30)+'…'),
+      datasets: [{ data: weights, backgroundColor: colors.slice(0,etfs.length), borderWidth:2, borderColor: surfaceColor }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx=>' '+ctx.label+': '+ctx.raw+'%' } } },
+      cutout:'55%'
+    }
+  });
+  const legend = document.getElementById('inv-legend');
+  legend.innerHTML = etfs.map((e,i)=>`<span class="legend-item"><span class="legend-dot" style="background:${colors[i]}"></span>${e.name.split(' UCITS')[0]} (${weights[i]}%)</span>`).join('');
+}
+
+// Trigger initial invest render when tab opens (already handled in showTab)
+
+// Init
+// Restore asset fields from settings
+(function() {
+  if (settings.assets) { const el = document.getElementById('b-assets'); if (el) el.value = settings.assets; }
+  if (settings.liquid)  { const el = document.getElementById('b-liquid');  if (el) el.value = settings.liquid; }
+  if (settings.realestate) { const el = document.getElementById('b-realestate'); if (el) el.value = settings.realestate; }
+})();
+renderBudget();
+loadSettings();
+syncBudget();
+</script>
+</body>
+</html>
