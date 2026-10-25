@@ -384,7 +384,8 @@ const Engine = (function () {
     const share = Math.min(1, Math.max(0, num(sc.pkShare, 100) / 100));
     const z = num(G.retRate) / 100, d = num(G.dynamic) / 100;
     const newRegime = retireYear >= num(G.emwEndYear, 2028);
-    const excl = new Set(sc.exclude || []);
+    const excl = new Set(sc.exclude || []), useAlso = new Set(sc.useAlso || []), sell = new Set(sc.sell || []);
+    const soldHypo = id => S.debts.filter(d => d.type === 'hypo' && String(d.immoId) === String(id)).reduce((s, d) => s + num(d.amount), 0);
 
     // Vermögenswerte zum Pensionierungszeitpunkt
     let erbeIn = 0, erbeLater = [], liquid = 0, liquidYieldBase = 0, pkCap = 0, pkRent = 0, lump3a = 0;
@@ -406,13 +407,14 @@ const Engine = (function () {
       if (a.type === 's3a') { if (!excl.has(a.id) && a.avail !== false) s3aAvail += num(a.value) * grow; continue; }
       if (a.type === 'immo') {
         const v = num(a.value) * grow;
+        if (sell.has(a.id)) { liquid += v - soldHypo(a.id); continue; }   // Verkauf: Erlös abzüglich verknüpfter Hypothek wird Kapital
         vw += v; vwUp += v * (a.upkeepRate === '' || a.upkeepRate == null ? num(G.upkeepRate) : num(a.upkeepRate)) / 100; stw += (a.steuerwert === '' || a.steuerwert == null ? v * 0.7 : num(a.steuerwert)) * grow;
         if (a.use === 'rent') rentIncome += num(a.rent); else emw += num(a.emw);
         continue;
       }
       const v = num(a.value) * grow;
       if (T.liquid && !excl.has(a.id) && a.avail !== false) { liquid += v; if (T.yield) liquidYieldBase += v; }
-      else if (['fz', 'geschaeft', 'uebrig'].includes(a.type) && a.avail === true && !excl.has(a.id)) liquid += v;
+      else if (['fz', 'geschaeft', 'uebrig'].includes(a.type) && (a.avail === true || useAlso.has(a.id)) && !excl.has(a.id)) liquid += v;
       else otherWealth += v;
     }
 
@@ -426,6 +428,7 @@ const Engine = (function () {
     let hypoTotal = 0, hypoInterest = 0, otherPay = 0, otherDebt = 0;
     for (const dbt of S.debts) {
       const amt = num(dbt.amount);
+      if (dbt.type === 'hypo' && dbt.immoId != null && dbt.immoId !== '' && sell.has(parseInt(dbt.immoId, 10))) continue;
       if (dbt.type === 'hypo') { hypoTotal += amt; hypoInterest += amt * num(dbt.rate) / 100; }
       else {
         otherDebt += amt;
@@ -1445,7 +1448,8 @@ const UBS_PORT = [
     scEdit(); scRes();
   }
   function scEdit() {
-    const liq = S.assets.filter(a => E.ASSET_TYPES[a.type].liquid || ['erbe', 'scheid', 'fz', 'geschaeft', 'uebrig'].includes(a.type));
+    const liq = S.assets;
+    const useChk = (s, a) => ['fz', 'geschaeft', 'uebrig'].includes(a.type) ? ((s.useAlso || []).includes(a.id) || a.avail === true) && !(s.exclude || []).includes(a.id) : !(s.exclude || []).includes(a.id);
     $('#sc-edit').innerHTML = S.scenarios.map((s, i) => `<div class="sccard" style="border-top-color:${SC_COLORS[i % 6]}">
       <div class="ihead"><input type="text" class="iname" value="${esc(s.name)}" data-s="scenarios" data-id="${s.id}" data-k="name">
       <button class="x" title="Duplizieren" data-act="sc-dup" data-id="${s.id}">⧉</button><button class="x" title="Löschen" data-act="del" data-list="scenarios" data-id="${s.id}">×</button></div>
@@ -1457,7 +1461,7 @@ const UBS_PORT = [
         ${inp('Kapitalbezug staffeln über', 'scenarios', s.id, 'stagger', s.stagger, { suf: 'Jahre', hint: 'senkt die Progression (PK + 3a in verschiedenen Steuerjahren)' })}
         ${inp('Kapitalverwendung', 'scenarios', s.id, 'mode', s.mode, { type: 'select', opts: [['verzehr', 'Kapitalverzehr bis Planungshorizont'], ['ewig', 'Kapitalerhalt (ewige Rente)']] })}
       </div>
-      ${liq.length ? `<details><summary>Kapitalquellen &amp; Einkünfte</summary>${liq.map(a => `<label class="chk"><input type="checkbox" data-sc="${s.id}" data-ex="${a.id}" ${(s.exclude || []).includes(a.id) ? '' : 'checked'}> <span>${esc(a.name)} verwenden</span></label>`).join('')}
+      ${liq.length || S.incomes.length ? `<details><summary>Vermögenswerte &amp; Einkünfte wählen</summary>${liq.map(a => a.type === 'immo' ? `<label class="chk"><input type="checkbox" data-sc="${s.id}" data-sell="${a.id}" ${(s.sell || []).includes(a.id) ? 'checked' : ''}> <span>${esc(a.name || 'Liegenschaft')} verkaufen <small class="muted">(Erlös abzüglich Hypothek wird Kapital)</small></span></label>` : `<label class="chk"><input type="checkbox" data-sc="${s.id}" data-ex="${a.id}" ${useChk(s, a) ? 'checked' : ''}> <span>${esc(a.name || E.ASSET_TYPES[a.type].label)} verwenden</span></label>`).join('')}
         ${S.incomes.map(a => `<label class="chk"><input type="checkbox" data-sc="${s.id}" data-inc="${a.id}" ${(s.incomeOff || []).includes(a.id) ? '' : 'checked'}> <span>${esc(a.name)} einrechnen</span></label>`).join('')}</details>` : ''}
     </div>`).join('');
   }
@@ -1676,7 +1680,7 @@ const UBS_PORT = [
     const yrs = Math.max(0, num(P.retireAge) - num(P.age));
     const N = Math.max(1, Math.round(pv(EN.years, Math.max(1, num(P.lifeAge) - num(P.retireAge)))));
     const zN = (1 + num(EN.ret) / 100) / (1 + num(EN.infl) / 100) - 1, dyn = 0, restK = num(EN.rest);
-    const tgtM = pv(EN.target, r.need / 12), incM = pv(EN.income, r.fixedIn / 12), K0 = pv(EN.start, r.L0);
+    const tgtM = pv(EN.target, r.need / 12), incM = pv(EN.income, r.fixedIn / 12), K0 = entK0(EN, r);
     const capM = (z, K) => E.withdrawal(K, z, 0, N, restK);
     const gapM = Math.max(0, tgtM - incM);
     const laterE = (r.erbeLater || []).map(x => ({ t: Math.max(0, Math.round(x.age - num(P.retireAge))), v: x.v, age: x.age })).filter(x => x.t < N);
@@ -2049,16 +2053,22 @@ const UBS_PORT = [
     const m = R.find(x => x.s.id === S.entn.sc);
     return m || R.reduce((x, y) => (y.r.surplus > x.r.surplus ? y : x));
   }
+  function entK0(N, r) {
+    if (N.start !== '' && N.start != null) return pv(N.start, r.L0);
+    const m = N.startSc ? scResults().find(x => x.s.id === parseInt(N.startSc, 10)) : null;
+    return m ? m.r.L0 : r.L0;
+  }
   function rEntn() {
     const N = S.entn, P = S.profile, sel = entScenario();
     $('#p-entnahme').innerHTML = `
       <div class="card"><div class="row between wrap"><h2>Entnahmeplan</h2><button class="btn sm" data-act="ent-reset">Budget &amp; Szenario übernehmen</button></div>
         <p class="muted">Wie lange reicht das Kapital, wenn das Budget gedeckt werden soll? Alle Werte in heutiger Kaufkraft (inflationsbereinigt), Rendite netto nach Kosten. Kapitalgewinne sind für Privatanleger steuerfrei. Leere Felder werden aus Budget und Szenario übernommen.</p>
         <div class="fgrid">
-          ${inp('Szenario als Basis', 'entn', null, 'sc', N.sc, { type: 'select', opts: [[0, 'Bestes Szenario (automatisch)'], ...S.scenarios.map(s => [s.id, s.name])] })}
+          ${inp('Szenario als Basis (Startkapital, Budget, Einkünfte)', 'entn', null, 'sc', N.sc, { type: 'select', opts: [[0, 'Bestes Szenario (automatisch)'], ...scResults().map(x => [x.s.id, x.s.name + ' · Kapital ' + f0(x.r.L0)])], hint: 'Kapital gemäss Auswahl im Tab «Szenarien» (inkl. gewählter Vermögenswerte/Verkäufe)' })}
           ${inp('Zielbudget pro Monat (inkl. Steuern & Hypozins)', 'entn', null, 'target', N.target, { suf: 'CHF', ph: sel ? f0(sel.r.need / 12) : '', hint: 'leer = Gesamtbedarf aus Budget + Steuern + Kredite' })}
           ${inp('Renten/AHV/Einkünfte pro Monat', 'entn', null, 'income', N.income, { suf: 'CHF', ph: sel ? f0(sel.r.fixedIn / 12) : '', hint: 'leer = AHV + PK-Rente + weitere Einkünfte' })}
-          ${inp('Startkapital', 'entn', null, 'start', N.start, { suf: 'CHF', ph: sel ? f0(sel.r.L0) : '', hint: 'leer = verfügbares Kapital des Szenarios' })}
+          ${inp('Startkapital aus Szenario', 'entn', null, 'startSc', N.startSc || 0, { type: 'select', opts: [[0, 'wie Basis-Szenario oben'], ...scResults().map(x => [x.s.id, x.s.name + ' · ' + f0(x.r.L0)])], hint: 'Wählt, aus welchem Szenario das Startkapital stammt (inkl. dessen Auswahl der Vermögenswerte).' })}
+          ${inp('Startkapital', 'entn', null, 'start', N.start, { suf: 'CHF', ph: sel ? f0(entK0({ startSc: N.startSc }, sel.r)) : '', hint: sel ? 'leer = Kapital des gewählten Szenarios; eigener Betrag überschreibt' : 'leer = verfügbares Kapital des Szenarios' })}
           ${inp('Rendite p. a. nach Kosten', 'entn', null, 'ret', N.ret, { suf: '%' })}
           ${inp('Inflation p. a.', 'entn', null, 'infl', N.infl, { suf: '%' })}
           ${inp('Entnahmedauer', 'entn', null, 'years', N.years, { suf: 'Jahre', ph: String(Math.max(1, num(P.lifeAge) - num(P.retireAge))), hint: 'leer = bis Planungshorizont' })}
@@ -2071,7 +2081,7 @@ const UBS_PORT = [
     const el = $('#en-out'); if (!el) return;
     const N = S.entn, P = S.profile, sel = entScenario(); if (!sel) { el.innerHTML = '<div class="card muted">Bitte zuerst ein Szenario anlegen.</div>'; return; }
     const r = sel.r, pv = (v, d) => (v === '' || v == null ? d : num(v));
-    const target = pv(N.target, r.need / 12), income = pv(N.income, r.fixedIn / 12), K0 = pv(N.start, r.L0);
+    const target = pv(N.target, r.need / 12), income = pv(N.income, r.fixedIn / 12), K0 = entK0(N, r);
     const years = Math.max(1, Math.round(pv(N.years, Math.max(1, num(P.lifeAge) - num(P.retireAge)))));
     const z = (1 + num(N.ret) / 100) / (1 + num(N.infl) / 100) - 1, rest = num(N.rest);
     const W = Math.max(0, target - income);
@@ -2442,14 +2452,17 @@ const UBS_PORT = [
     if (el.id === 'imp') { importFile(el.files[0]); return; }
     if (el.dataset.sc) {
       const s = S.scenarios.find(x => x.id === parseInt(el.dataset.sc, 10)); if (!s) return;
+      if (el.dataset.sell) { const id = parseInt(el.dataset.sell, 10); s.sell = (s.sell || []).filter(x => x !== id); if (el.checked) s.sell.push(id); save(); scRes(); return; }
       const list = el.dataset.ex ? 'exclude' : 'incomeOff'; const id = parseInt(el.dataset.ex || el.dataset.inc, 10);
       s[list] = s[list] || []; const has = s[list].includes(id);
       if (!el.checked && !has) s[list].push(id); if (el.checked && has) s[list] = s[list].filter(x => x !== id);
+      if (el.dataset.ex) { s.useAlso = (s.useAlso || []).filter(x => x !== id); if (el.checked) s.useAlso.push(id); }
       save(); scRes(); return;
     }
     if (el.dataset.s && (el.tagName === 'SELECT' || el.type === 'checkbox')) {
       const info = setVal(el);
-      if (info.sc === 'entn' && info.k === 'sc') info.tgt.sc = parseInt(info.tgt.sc, 10) || 0;
+      if (info.sc === 'entn' && info.k === 'startSc') { info.tgt.startSc = parseInt(info.tgt.startSc, 10) || 0; info.tgt.start = ''; save(); rEntn(); return; }
+      if (info.sc === 'entn' && info.k === 'sc') { info.tgt.sc = parseInt(info.tgt.sc, 10) || 0; info.tgt.startSc = 0; info.tgt.start = ''; save(); rEntn(); return; }
       if (info.sc === 'inv' && info.k === 'ubsSel') { save(); ubsRender(); return; }
       const structural = (info.sc === 'assets' && (info.k === 'use')) || (info.sc === 'profile' && info.k === 'civil') || (info.sc === 'budget' && false);
       if (info.sc === 'profile' && info.k === 'canton') { afterChange(info, false); return; }
@@ -2493,7 +2506,7 @@ const UBS_PORT = [
     else if (a === 'goal-add') { S.goals.push({ id: S.nextId++, std: false, dim: 'reisen', dimName: '', title: '', desc: '', yearly: '', once: '', fromAge: S.profile.retireAge, prio: 'important' }); save(); rSettings(); }
     else if (a === 'sc-add') { S.scenarios.push(newScenario(S, 'Szenario ' + (S.scenarios.length + 1), 50)); save(); rSzen(); }
     else if (a === 'sc-dup') { const s = S.scenarios.find(x => x.id === id); const c = JSON.parse(JSON.stringify(s)); c.id = S.nextId++; c.name += ' (Kopie)'; S.scenarios.push(c); save(); rSzen(); }
-    else if (a === 'ent-reset') { S.entn.target = ''; S.entn.income = ''; S.entn.start = ''; S.entn.years = ''; S.entn.sc = 0; save(); rEntn(); }
+    else if (a === 'ent-reset') { S.entn.target = ''; S.entn.income = ''; S.entn.start = ''; S.entn.startSc = 0; S.entn.years = ''; S.entn.sc = 0; save(); rEntn(); }
     else if (a === 'ubs-norm') { const p = S.inv.ubsSel; const rs = ubsRows(p); const cur = rs.map(r => ubsW(p, r)), t = cur.reduce((s, x) => s + x, 0) || 1; S.inv.ubsW[p] = {}; rs.forEach((r, i) => { S.inv.ubsW[p][r.id] = Math.round(cur[i] / t * 1000) / 10; });
       const rest = Math.round((100 - rs.reduce((s, r) => s + S.inv.ubsW[p][r.id], 0)) * 10) / 10; if (rs.length && rest) { const big = rs.reduce((x, y) => S.inv.ubsW[p][y.id] > S.inv.ubsW[p][x.id] ? y : x); S.inv.ubsW[p][big.id] = Math.round((S.inv.ubsW[p][big.id] + rest) * 10) / 10; } save(); ubsRender(); }
     else if (a === 'ubs-reset') { S.inv.ubsW[S.inv.ubsSel] = {}; save(); ubsRender(); }
