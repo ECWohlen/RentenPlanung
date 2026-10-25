@@ -158,6 +158,10 @@ body.lay-dragging{user-select:none;cursor:grabbing}
 details.inspo{margin:12px 0}details.inspo summary{cursor:pointer;padding:6px 0}.glist a{color:inherit;text-decoration:underline}
 details.goal summary{cursor:pointer;list-style:revert}.gsum{margin-left:8px;font-size:13px;opacity:.85}
 textarea.gf{width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:1px solid rgba(128,128,128,.4);font:inherit;background:var(--card,transparent);color:inherit}
+.bpill.vgood{background:#0f6b3a}.bpill.top{background:#0b4f8a}
+.verdict.vgood{background:rgba(15,107,58,.16);border-left-color:#0f6b3a}.verdict.top{background:rgba(11,79,138,.14);border-left-color:#0b4f8a}
+table.ko td.l,table.rt td.l{min-width:150px}table.ko .ko-name{max-width:150px}table.ko th.kc{min-width:140px;vertical-align:top}
+table.ko td.ck{text-align:center}table.ko td.ck input{width:20px;height:20px}.verb{opacity:.75;font-size:13px}table.ko td.l small{display:block;opacity:.7}
 </style></head>
 <body>
 <header><div id="bgbar"><label>Seitenhintergrund <select id="bg-sel"></select></label><input type="color" id="bg-col" value="#f5f4ef" title="Eigene Farbe" hidden><button type="button" id="lay-btn" class="btn sm">Layout bearbeiten</button><label>Sektionen <select id="card-sel"></select></label><input type="color" id="card-col" value="#ffffff" title="Eigene Farbe" hidden></div><h1>Rentenplanung Schweiz</h1>
@@ -321,6 +325,7 @@ const Engine = (function () {
     fz: { label: 'Motorfahrzeuge (Steuerwert)', liquid: false, wealth: true, g: 0 },
     geschaeft: { label: 'Geschäftsvermögen / nicht kotierte Beteiligungen', liquid: false, wealth: true, g: 0 },
     erbe: { label: 'Anwartschaft / Erbe (erwartet)', liquid: false, g: 0 },
+    scheid: { label: 'Auszahlung in Folge Scheidung (erwartet)', liquid: false, g: 0 },
     uebrig: { label: 'Übrige Vermögenswerte (Wertsachen, Schmuck, Kunst, Forderungen, Erbanteile)', liquid: false, wealth: true, g: 0 }
   };
   E.DEBT_TYPES = {
@@ -331,6 +336,7 @@ const Engine = (function () {
   };
 
   // Erwarteter Netto-Zufluss aus Erbe/Anwartschaft: Betrag × Anteil × (1 – Erbschaftssteuer)
+  E.isInh = t => t === 'erbe' || t === 'scheid';
   E.erbeAge = (a, P) => (a.arrive === '' || a.arrive == null || !isFinite(parseFloat(a.arrive)) ? num(P.retireAge) : parseFloat(a.arrive));
   E.erbeValue = a => num(a.value) * (a.share === '' || a.share == null ? 1 : num(a.share) / 100) * (1 - num(a.taxPct) / 100);
 
@@ -393,7 +399,7 @@ const Engine = (function () {
         pkRent += num(a.rente) * share;
         continue;
       }
-      if (a.type === 'erbe') {
+      if (E.isInh(a.type)) {
         if (!excl.has(a.id) && a.avail !== false) { const ea = E.erbeAge(a, P); if (ea <= num(P.retireAge)) { liquid += E.erbeValue(a); erbeIn += E.erbeValue(a); } else erbeLater.push({ age: ea, v: E.erbeValue(a), name: a.name || 'Erbe' }); }
         continue;
       }
@@ -520,6 +526,67 @@ const Engine = (function () {
     };
   };
 
+
+  /* ---------- Vermögensbausteine & frei kombinierbare Varianten ---------- */
+  // Bausteine bei Pensionierung (Werte aufgezinst), Standard-Behandlung je Typ
+  E.blocks = function (S, sc) {
+    const P = S.profile, yrs = Math.max(0, num(P.retireAge) - num(P.age)); const out = [];
+    S.assets.forEach(a => {
+      const T = E.ASSET_TYPES[a.type]; if (!T) return;
+      const v = E.isInh(a.type) ? E.erbeValue(a) : num(a.value) * (a.type === 'pk' ? 1 : Math.pow(1 + num(a.growth) / 100, yrs));
+      const name = a.name || T.label.split(' (')[0].split(',')[0];
+      if (a.type === 'immo') { const lk = S.debts.filter(d => d.type === 'hypo' && String(d.immoId) === String(a.id)).reduce((s, d) => s + num(d.amount), 0); out.push({ key: 'a' + a.id, id: a.id, kind: 'immo', name, v, linked: lk, def: 'out' }); }
+      else if (E.isInh(a.type)) { out.push({ key: 'a' + a.id, id: a.id, kind: 'erbe', name: name + (E.erbeAge(a, P) > num(P.retireAge) ? ' (ab Alter ' + E.erbeAge(a, P) + ')' : ''), v, def: a.avail !== false ? 'in' : 'out' }); }
+      else if (a.type === 's3a') out.push({ key: 'a' + a.id, id: a.id, kind: 's3a', name, v, pledged: !!a.pledged, def: a.avail !== false ? 'in' : 'out' });
+      else if (a.type === 'pk') out.push({ key: 'a' + a.id, id: a.id, kind: 'pk', name, v, def: a.avail !== false ? 'in' : 'out' });
+      else if (T.liquid || ['fz', 'geschaeft', 'uebrig'].includes(a.type)) out.push({ key: 'a' + a.id, id: a.id, kind: 'liq', name, v, def: (T.liquid ? a.avail !== false : a.avail === true) ? 'in' : 'out' });
+    });
+    S.debts.forEach(d => {
+      const v = num(d.amount); if (d.type === 'hypo') { if (S.assets.some(a => a.type === 'immo' && String(a.id) === String(d.immoId))) return; out.push({ key: 'd' + d.id, id: d.id, kind: 'hypo', name: d.name || 'Hypothek', v, def: 'auto' }); }
+      else out.push({ key: 'd' + d.id, id: d.id, kind: 'debt', name: d.name || 'Kredit', v, def: 'in' });
+    });
+    return out;
+  };
+  E.combos = function (S, sc, combos) {
+    const P = S.profile, G = S.settings, yrs = Math.max(0, num(P.retireAge) - num(P.age)), N = Math.max(1, num(P.lifeAge) - num(P.retireAge));
+    const civ = (P.civil === 'married' || P.civil === 'partnership') ? 'M' : 'S';
+    const topt = { factor: num(G.taxFactor, 100) / 100, church: P.confession === 'none' ? 0 : num(G.churchPct) / 100 };
+    const blocks = E.blocks(S, sc), byKey = {}; blocks.forEach(b => byKey[b.key] = b);
+    const hypo0 = S.debts.filter(d => d.type === 'hypo').reduce((s, d) => s + num(d.amount), 0);
+    const amo = sc ? Math.min(hypo0, Math.max(0, num(sc.amort))) : 0;
+    const s3a = E.s3aMode(S, sc), pledgedTot = blocks.filter(b => b.kind === 's3a' && b.pledged).reduce((s, b) => s + b.v, 0);
+    const amoLiq = s3a === 'amo' ? Math.max(0, amo - pledgedTot) : amo;
+    const ahvM = E.ahvYearly(S) / 12, quote = num(G.burdenQuote, 33.333) / 100, zk = num(G.calcRate) / 100, uk = num(G.upkeepRate) / 100;
+    const ubase = G.upkeepBase || 'hypo';
+    const otherPay = S.debts.filter(d => d.type !== 'hypo').reduce((s, d) => s + (d.type === 'andere' ? num(d.pay) : num(d.monthly) * 12), 0);
+    const vwUp = S.assets.filter(a => a.type === 'immo').reduce((s, a) => s + num(a.value) * Math.pow(1 + num(a.growth) / 100, yrs) * (a.upkeepRate === '' || a.upkeepRate == null ? uk : num(a.upkeepRate) / 100), 0);
+    const upFixed = ubase === 'vw' ? vwUp : ubase === 'fix' ? num(G.upkeepFix) : 0;
+    const maxH = m => ubase === 'hypo' ? Math.max(0, (m * 12 * quote - otherPay) / (zk + uk)) : Math.max(0, (m * 12 * quote - upFixed - otherPay) / zk);
+    const tax = x => x > 0 ? E.capTaxOf(S, x, P.canton, civ, topt, 1).total : 0;
+    return combos.map(c => {
+      const mode = b => (c.modes && c.modes[b.key]) || b.def;
+      const sel = b => mode(b) === 'in';
+      const sold = blocks.filter(b => b.kind === 'immo' && sel(b)), anySold = sold.length > 0;
+      const liq = blocks.filter(b => b.kind === 'liq' && sel(b)).reduce((s, b) => s + b.v, 0);
+      const debtsRep = blocks.filter(b => b.kind === 'debt' && sel(b)).reduce((s, b) => s + b.v, 0);
+      const pkSel = blocks.filter(b => b.kind === 'pk' && sel(b)).reduce((s, b) => s + b.v, 0);
+      const a3Sel = blocks.filter(b => b.kind === 's3a' && sel(b) && !(b.pledged && !anySold && s3a === 'amo')).reduce((s, b) => s + b.v, 0);
+      const pkNet = pkSel - tax(pkSel), a3Net = (pkSel + a3Sel - tax(pkSel + a3Sel)) - pkNet;
+      const erbe = blocks.filter(b => b.kind === 'erbe' && sel(b)).reduce((s, b) => s + b.v, 0);
+      const unl = blocks.filter(b => b.kind === 'hypo');
+      const unlRep = unl.filter(b => mode(b) === 'in' || (mode(b) === 'auto' && anySold)).reduce((s, b) => s + b.v, 0), unlKept = unl.reduce((s, b) => s + b.v, 0) - unlRep;
+      const soldNet = sold.reduce((s, b) => s + b.v - b.linked, 0);
+      const keptLinked = blocks.filter(b => b.kind === 'immo' && !sel(b)).reduce((s, b) => s + b.linked, 0);
+      const comp = { liq: liq - debtsRep - (anySold ? 0 : amoLiq), pk: pkNet, a3: a3Net, immo: soldNet - unlRep, erbe };
+      const K = Math.max(0, comp.liq + comp.pk + comp.a3 + comp.immo + comp.erbe);
+      const hypoEff = anySold ? keptLinked + unlKept : Math.max(0, hypo0 - amo);
+      const mEw = E.withdrawal(K, num(G.retRateEternal) / 100, num(G.dynamic) / 100, 100, K) + ahvM;
+      const mBe = E.withdrawal(K, num(G.retRate) / 100, num(G.dynamic) / 100, N, 0) + ahvM;
+      const maxEw = maxH(mEw), maxBe = maxH(mBe);
+      return { id: c.id, name: c.name, K, comp, anySold, soldNames: sold.map(b => b.name), mEw, mBe, yEw: mEw * 12, yBe: mBe * 12, maxEw, maxBe, hypo: hypoEff, diffEw: maxEw - hypoEff, diffBe: maxBe - hypoEff, tragbarEw: maxEw >= hypoEff, tragbarBe: maxBe >= hypoEff };
+    });
+  };
+
   /* ---------- Gesamtübersicht (analog Excel «Normalvariante») ---------- */
   // Jahresprojektion der Vermögensbestandteile bis zur Pensionierung, Investierbar-Linien A–C
   // und daraus abgeleitet Entnahme (ewige/begrenzte Rente) und maximal tragbare Hypothek.
@@ -538,7 +605,7 @@ const Engine = (function () {
       ['Säule 3a', t => t === 's3a', '#2e9e6b'],
       ['Pensionskasse', t => t === 'pk', '#8b4fb8'],
       ['Liegenschaften (netto nach Hypothek)', t => t === 'immo', '#d9822b'],
-      ['Anwartschaft / Erbe (netto)', t => t === 'erbe', '#c8453b'],
+      ['Erbe / Auszahlungen (netto)', t => E.isInh(t), '#c8453b'],
       ['Fahrzeuge & Übriges', t => t === 'fz' || t === 'geschaeft' || t === 'uebrig', '#898781']
     ];
     const ahvM = E.ahvYearly(S) / 12;
@@ -548,52 +615,84 @@ const Engine = (function () {
     const s3a = E.s3aMode(S, sc);
     const s3aTot0 = S.assets.filter(a => a.type === 's3a').reduce((s, a) => s + num(a.value) * Math.pow(1 + num(a.growth) / 100, yrs), 0);
     const amoLiq = s3a === 'amo' ? Math.max(0, amo - s3aTot0) : amo;
+    // ---- Kombinationen: Liegenschaften verkauft/behalten × Erbe mit/ohne ----
+    const imms = S.assets.filter(a => a.type === 'immo'), n = imms.length, full = (1 << n) - 1;
+    const hypoLinked = imms.map(a => S.debts.filter(d => d.type === 'hypo' && String(d.immoId) === String(a.id)).reduce((s, d) => s + num(d.amount), 0));
+    const hypoUnl = Math.max(0, hypo0 - hypoLinked.reduce((s, x) => s + x, 0));
+    const erbeAssets = S.assets.filter(a => E.isInh(a.type) && a.avail !== false && E.erbeAge(a, P) <= num(P.retireAge) && E.erbeValue(a) > 0);
+    const has = { immo: n > 0, n, a3: S.assets.some(a => a.type === 's3a' && num(a.value) > 0), pk: S.assets.some(a => a.type === 'pk' && num(a.value) > 0), erbe: erbeAssets.length > 0, keep: imms.some(a => a.keepE) };
+    const keepMask = imms.reduce((m, a, i) => m | (a.keepE ? (1 << i) : 0), 0), eMask = full & ~keepMask;
+    const pc = m => { let c = 0; while (m) { c += m & 1; m >>= 1; } return c; };
+    let maskList = [];
+    if (n <= 4) for (let m = 0; m <= full; m++) maskList.push(m);
+    else { maskList = [0, full]; for (let i = 0; i < n; i++) { maskList.push(1 << i); maskList.push(full & ~(1 << i)); } }
+    const prefer = [[0, false], [full, false]].concat(has.erbe ? [[0, true], [full, true]] : []).concat(has.keep ? [[eMask, has.erbe]] : []);
+    const ordered = []; const seen = new Set();
+    const addC = (m, er) => { const key = m + '|' + (er ? 1 : 0); if (seen.has(key) || (er && !has.erbe) || maskList.indexOf(m) < 0 && m !== eMask) return; seen.add(key); ordered.push({ mask: m, erbeOn: !!er }); };
+    prefer.forEach(([m, er]) => addC(m, er));
+    maskList.slice().sort((x, y) => pc(x) - pc(y) || x - y).forEach(m => { addC(m, false); if (has.erbe) addC(m, true); });
+    const palette = ['#185FA5', '#2e9e6b', '#c8453b', '#d9822b', '#8b4fb8', '#1baf7a', '#4aa3b5', '#e87ba4', '#898781', '#4a3aa7', '#b0388a', '#7a9a1a'];
+    const letter = i => i < 26 ? String.fromCharCode(65 + i) : 'A' + (i - 25);
+    const nm = a => a.name || 'Liegenschaft';
+    const combos = ordered.map((c, i) => {
+      const sold = imms.filter((a, j) => c.mask & (1 << j)).map(nm), kept = imms.filter((a, j) => !(c.mask & (1 << j))).map(nm);
+      const any = c.mask !== 0;
+      let sTxt = !has.immo ? '' : !any ? 'keine Liegenschaft verkauft' : c.mask === full ? (n > 1 ? 'alle Liegenschaften verkauft' : nm(imms[0]) + ' verkauft') : 'verkauft: ' + sold.join(', ') + '; behalten: ' + kept.join(', ');
+      let sShort = !has.immo ? '' : !any ? 'nichts verkauft' : c.mask === full ? 'alles verkauft' : 'verkauft: ' + sold.join(', ');
+      const eTxt = has.erbe ? (c.erbeOn ? 'mit Erbe' : 'ohne Erbe') : '', eShort = has.erbe ? (c.erbeOn ? ' + Erbe' : '') : '';
+      const a3Txt = any && has.a3 ? '3a frei' : '';
+      const label = [sTxt, a3Txt, eTxt].filter(Boolean).join(' · ') || 'nur Kapital';
+      const short = ((sShort + eShort) || 'nur Kapital').replace(/^ \+ /, '');
+      let tag = '';
+      if (c.mask === 0 && !c.erbeOn) tag = 'A'; else if (has.immo && c.mask === full && !c.erbeOn) tag = 'B'; else if (c.mask === 0 && c.erbeOn) tag = 'C'; else if (has.immo && c.mask === full && c.erbeOn) tag = 'D'; else if (has.keep && c.mask === eMask && c.erbeOn === has.erbe) tag = 'E';
+      return Object.assign({}, c, { k: letter(i), color: palette[i % palette.length], label, short, tag, any });
+    });
     const years = [];
     let vwUpNow = 0;
     for (let t = 0; t <= yrs; t++) {
       const row = { t, year: num(G.year) + t, age: num(P.age) + t, ageP: P.partnerAge === '' || P.partnerAge == null ? null : num(P.partnerAge) + t, g: groups.map(() => 0) };
-      let liq = 0, pk = 0, a3 = 0, immoGross = 0, rest = 0, erbe = 0, keepNet = 0, vwUp = 0;
+      let liq = 0, pk = 0, a3 = 0, immoGross = 0, rest = 0, erbe = 0, vwUp = 0; const immoV = [];
       for (const a of S.assets) {
         const T = E.ASSET_TYPES[a.type]; const grow = a.type === 'pk' ? 1 : Math.pow(1 + num(a.growth) / 100, t);
-        let v = a.type === 'erbe' ? E.erbeValue(a) : num(a.value) * grow;
-        if (a.type === 'erbe' && num(P.age) + t < E.erbeAge(a, P)) v = 0;
+        let v = E.isInh(a.type) ? E.erbeValue(a) : num(a.value) * grow;
+        if (E.isInh(a.type) && num(P.age) + t < E.erbeAge(a, P)) v = 0;
         const gi = groups.findIndex(g => g[1](a.type)); if (gi >= 0) row.g[gi] += v;
         if (a.type === 'pk') pk += v; else if (a.type === 's3a') a3 += v;
-        else if (a.type === 'erbe') { if (a.avail !== false) erbe += v; }
-        else if (a.type === 'immo') {
-          immoGross += v; vwUp += v * (a.upkeepRate === '' || a.upkeepRate == null ? uk : num(a.upkeepRate) / 100);
-          if (a.keepE) keepNet += v - S.debts.filter(d => d.type === 'hypo' && String(d.immoId) === String(a.id)).reduce((s, d) => s + num(d.amount), 0);
-        }
+        else if (E.isInh(a.type)) { if (a.avail !== false) erbe += v; }
+        else if (a.type === 'immo') { immoGross += v; immoV.push(v); vwUp += v * (a.upkeepRate === '' || a.upkeepRate == null ? uk : num(a.upkeepRate) / 100); }
         else if (T.liquid) { if (a.avail !== false) liq += v; else rest += v; }
         else if (['fz', 'geschaeft', 'uebrig'].includes(a.type) && a.avail === true) liq += v; else rest += v;
       }
       vwUpNow = vwUp;
       row.g[3] -= hypo; row.g[0] -= amoLiq; row.g[1] -= (amo - amoLiq);
-      const immoNet = immoGross - hypo0;                      // bei Verkauf wird die Hypothek vollständig aus dem Erlös getilgt
       const pkNet = pk - E.capTaxOf(S, pk, P.canton, civ, topt, 1).total;
       const pk3Net = pk + a3 - E.capTaxOf(S, pk + a3, P.canton, civ, topt, 1).total;
-      const base0 = liq - otherDebt;
-      row.A = base0 - amoLiq + (s3a === 'invest' ? pk3Net : pkNet);   // PK/RIF + Liquidität nach Steuern (3a nur wenn frei verfügbar)
-      row.B = base0 + pk3Net + immoNet;                      // + 3a entpfändet + Liegenschaften netto (Verkauf, keine Amortisation nötig)
-      row.C = row.A + erbe;                                  // A + Erbe, ohne Immobilien
-      row.D = row.B + erbe;                                  // B + Erbe
-      row.E = row.D - keepNet;                               // D ohne behaltene Liegenschaft (z. B. Fosano)
+      const a3Net = pk3Net - pkNet, base0 = liq - otherDebt;
       row.total = row.g.reduce((s, x) => s + x, 0);
+      row.comp = {};
+      combos.forEach(c => {
+        const soldV = imms.reduce((s, a, j) => s + ((c.mask & (1 << j)) ? immoV[j] : 0), 0), soldL = imms.reduce((s, a, j) => s + ((c.mask & (1 << j)) ? hypoLinked[j] : 0), 0);
+        const immoNet = c.any ? soldV - soldL - hypoUnl : 0;                 // Verkauf: Hypothek wird aus dem Erlös getilgt
+        const cp = { liq: base0 - (c.any ? 0 : amoLiq), pk: pkNet, a3: (c.any || s3a === 'invest') ? a3Net : 0, immo: immoNet, erbe: c.erbeOn ? erbe : 0 };
+        row.comp[c.k] = cp; row[c.k] = cp.liq + cp.pk + cp.a3 + cp.immo + cp.erbe;
+      });
       years.push(row);
     }
     const last = years[years.length - 1];
     const upFixed = ubase === 'vw' ? vwUpNow : ubase === 'fix' ? num(G.upkeepFix) : 0;
     const maxH = m => ubase === 'hypo' ? Math.max(0, (m * 12 * quote - otherPay) / (zk + uk)) : Math.max(0, (m * 12 * quote - upFixed - otherPay) / zk);
-    const defs = [['A', 'Investierbar minimal (PK & Liquidität nach Steuern)', '#185FA5'], ['B', 'Investierbar max (+ 3a entpfändet, + Liegenschaften netto)', '#2e9e6b'], ['C', 'A + Erbe, ohne Immobilien', '#c8453b'], ['D', 'B + Erbe, inkl. beide Immobilien', '#d9822b'], ['E', 'D ohne behaltene Liegenschaft (z. B. Fosano)', '#8b4fb8']];
-    const lines = defs.map(([k, label, color]) => {
-      const K = Math.max(0, last[k]);
+    const lines = combos.map(c => {
+      const K = Math.max(0, last[c.k]);
       const mEw = E.withdrawal(K, num(G.retRateEternal) / 100, num(G.dynamic) / 100, 100, K) + ahvM;
       const mBe = E.withdrawal(K, num(G.retRate) / 100, num(G.dynamic) / 100, N, 0) + ahvM;
-      return { k, label, color, K, mEw, mBe, yEw: mEw * 12, yBe: mBe * 12, maxEw: maxH(mEw), maxBe: maxH(mBe), diffEw: maxH(mEw) - hypo, diffBe: maxH(mBe) - hypo };
+      const hypoC = c.any ? imms.reduce((s, a, j) => s + ((c.mask & (1 << j)) ? 0 : hypoLinked[j]), 0) : hypo;
+      return Object.assign({}, c, { K, mEw, mBe, yEw: mEw * 12, yBe: mBe * 12, maxEw: maxH(mEw), maxBe: maxH(mBe), diffEw: maxH(mEw) - hypoC, diffBe: maxH(mBe) - hypoC, hypoC, comp: last.comp[c.k] });
     });
+    const all = {}; lines.forEach(l => { if (l.tag && !all[l.tag]) all[l.tag] = l; });   // Excel-Standardvarianten A–E (soweit anwendbar)
+    const hidden = [];
     const erbeNet = last.g[4] || 0;
-    const erbeLater = S.assets.filter(a => a.type === 'erbe' && a.avail !== false && E.erbeAge(a, P) > num(P.retireAge)).map(a => ({ age: E.erbeAge(a, P), v: E.erbeValue(a), name: a.name || 'Erbe' }));
-    return { erbe: erbeNet, erbeLater, amo, amoLiq, s3a, ubase, hypo0, years, groups: groups.map(g => ({ label: g[0], color: g[2] })), lines, hypo, ahvM, yrs, N };
+    const erbeLater = S.assets.filter(a => E.isInh(a.type) && a.avail !== false && E.erbeAge(a, P) > num(P.retireAge)).map(a => ({ age: E.erbeAge(a, P), v: E.erbeValue(a), name: a.name || 'Erbe' }));
+    return { erbe: erbeNet, erbeLater, all, hidden, has, amo, amoLiq, s3a, ubase, hypo0, years, groups: groups.map(g => ({ label: g[0], color: g[2] })), lines, hypo, ahvM, yrs, N };
   };
 
   return E;
@@ -1004,7 +1103,7 @@ const UBS_PORT = [
   const TABS = [
     ['budget', 'Budget', '1', '#2a78d6'], ['profil', 'Profil & Wohnort', '2', '#1baf7a'], ['vermoegen', 'Vermögen', '3', '#008300'], ['kredite', 'Kredite', '4', '#e34948'],
     ['vorsorge', 'Vorsorge & Einkünfte', '5', '#8b4fb8'], ['szenarien', 'Szenarien & Tragbarkeit', '6', '#d9822b'], ['entnahme', 'Entnahmeplan', '7', '#4aa3b5'],
-    ['steuern', 'Steuern: Kapital vs. Rente', '8', '#c8453b'], ['anlage', 'Anlage-Empfehlung', '9', '#4a3aa7'], ['uebersicht', 'Gesamtübersicht', '★', '#185FA5'], ['beurteilung', 'Beurteilung', '✔', '#b0388a'], ['settings', 'Annahmen & Daten', '⚙', '#6b6a64']
+    ['steuern', 'Steuern: Kapital vs. Rente', '8', '#c8453b'], ['anlage', 'Anlage-Empfehlung', '9', '#4a3aa7'], ['kombi', 'Kombinationen', '◆', '#2a9d8f'], ['uebersicht', 'Gesamtübersicht', '★', '#185FA5'], ['beurteilung', 'Beurteilung', '✔', '#b0388a'], ['settings', 'Annahmen & Daten', '⚙', '#6b6a64']
   ];
   let curTab = 'budget';
   const charts = {};
@@ -1017,7 +1116,7 @@ const UBS_PORT = [
     window.scrollTo({ top: 0 });
     try { sessionStorage.setItem('rp_tab', t); } catch (e) { }
   }
-  function renderPage(t) { ({ budget: rBudget, profil: rProfil, vermoegen: rVermoegen, kredite: rKredite, vorsorge: rVorsorge, szenarien: rSzen, steuern: rSteuern, entnahme: rEntn, anlage: rAnlage, uebersicht: rUeb, beurteilung: rBeurt, settings: rSettings })[t](); }
+  function renderPage(t) { ({ budget: rBudget, profil: rProfil, vermoegen: rVermoegen, kredite: rKredite, vorsorge: rVorsorge, szenarien: rSzen, steuern: rSteuern, entnahme: rEntn, anlage: rAnlage, kombi: rKombi, uebersicht: rUeb, beurteilung: rBeurt, settings: rSettings })[t](); }
   let cardDark = null;
   function drawChart(id, cfg) {
     const el = document.getElementById(id); if (!el) return;
@@ -1136,7 +1235,7 @@ const UBS_PORT = [
           ${inp('Alter heute (Hauptperson)', 'profile', null, 'age', P.age, { suf: 'Jahre' })}
           ${inp('Pensionierungsalter', 'profile', null, 'retireAge', P.retireAge, { suf: 'Jahre' })}
           ${inp('Planungshorizont bis Alter', 'profile', null, 'lifeAge', P.lifeAge, { suf: 'Jahre', hint: 'Kapital soll bis dahin reichen' })}
-          ${inp('Zivilstand', 'profile', null, 'civil', P.civil, { type: 'select', opts: [['single', 'Alleinstehend / ledig / geschieden / verwitwet'], ['married', 'Verheiratet'], ['partnership', 'Eingetragene Partnerschaft'], ['concubinage', 'Konkubinat (getrennt veranlagt)']] })}
+          ${inp('Zivilstand', 'profile', null, 'civil', P.civil, { type: 'select', opts: [['single', 'Alleinstehend / ledig / geschieden / verwitwet'], ['married', 'Verheiratet'], ['divorcing', 'In Scheidung (wird wie alleinstehend gerechnet)'], ['partnership', 'Eingetragene Partnerschaft'], ['concubinage', 'Konkubinat (getrennt veranlagt)']], hint: P.civil === 'divorcing' ? 'Steuern und AHV werden wie bei Alleinstehenden gerechnet. Tragen Sie die PK nach der Teilung ein und erfassen Sie erwartete Auszahlungen unter «Vermögen» als «Auszahlung in Folge Scheidung».' : undefined })}
           ${inp('Alter Partner/in (optional)', 'profile', null, 'partnerAge', P.partnerAge, { suf: 'Jahre' })}
           ${inp('Konfession (Kirchensteuer)', 'profile', null, 'confession', P.confession, { type: 'select', opts: [['none', 'Keine / andere'], ['ref', 'Reformiert'], ['rk', 'Römisch-katholisch'], ['ck', 'Christkatholisch']] })}
         </div></div>
@@ -1177,7 +1276,7 @@ const UBS_PORT = [
       const T = E.ASSET_TYPES[a.type]; let body = '';
       const I = (l, k, o) => inp(l, 'assets', a.id, k, a[k], o);
       if (a.type === 'pk') body = I('Altersguthaben bei Pensionierung', 'value', { suf: 'CHF' }) + I('Altersrente p. a. bei Pensionierung', 'rente', { suf: 'CHF', hint: `Umwandlungssatz: <b>${num(a.value) > 0 ? (num(a.rente) / num(a.value) * 100).toFixed(2) : '–'} %</b>` });
-      else if (a.type === 'erbe') body = I('Erwarteter Betrag (brutto)', 'value', { suf: 'CHF' }) + I('Anteil (z. B. Teil-Erbschaft)', 'share', { suf: '%', hint: '100 % = ganzer Betrag' }) + I('Erbschaftssteuer', 'taxPct', { suf: '%', hint: 'Direkte Nachkommen: i. d. R. 0 %. Je nach Kanton unterschiedlich.' }) + I('Zufluss im Alter', 'arrive', { suf: 'Jahre', hint: 'Alter, in dem das Erbe fliesst (leer = bei Pensionierung). Bis zur Pensionierung → Startkapital; danach → späterer Zufluss in den Berechnungen.' }) + inp('Als Kapital im Ruhestand verfügbar', 'assets', a.id, 'avail', a.avail !== false, { type: 'check' }) + `<div class="fld"><label>Netto-Zufluss</label><b>${chf(E.erbeValue(a))}</b></div>`;
+      else if (E.isInh(a.type)) body = I(a.type === 'scheid' ? 'Erwartete Auszahlung (netto, nach Vermögensteilung)' : 'Erwarteter Betrag (brutto)', 'value', { suf: 'CHF' }) + I(a.type === 'scheid' ? 'Anteil' : 'Anteil (z. B. Teil-Erbschaft)', 'share', { suf: '%', hint: '100 % = ganzer Betrag' }) + I(a.type === 'scheid' ? 'Abzug / Steuer' : 'Erbschaftssteuer', 'taxPct', { suf: '%', hint: a.type === 'scheid' ? 'Güterrechtliche Auszahlungen sind i. d. R. steuerfrei (0 %). Bitte prüfen.' : 'Direkte Nachkommen: i. d. R. 0 %. Je nach Kanton unterschiedlich.' }) + I('Zufluss im Alter', 'arrive', { suf: 'Jahre', hint: 'Alter, in dem das Geld fliesst (leer = bei Pensionierung). Bis zur Pensionierung → Startkapital; danach → späterer Zufluss in den Berechnungen.' }) + inp('Als Kapital im Ruhestand verfügbar', 'assets', a.id, 'avail', a.avail !== false, { type: 'check' }) + `<div class="fld"><label>Netto-Zufluss</label><b>${chf(E.erbeValue(a))}</b></div>`;
       else if (a.type === 'immo') body = I('Nutzung', 'use', { type: 'select', opts: [['own', 'Selbstbewohnt (Eigenmietwert)'], ['rent', 'Vermietet']] }) + I('Verkehrswert (Marktwert)', 'value', { suf: 'CHF' }) +
         I('Steuerwert', 'steuerwert', { suf: 'CHF', hint: 'Leer = 70 % des Verkehrswerts' }) +
         (a.use === 'rent' ? I('Netto-Mieteinnahmen p. a.', 'rent', { suf: 'CHF' }) : I('Eigenmietwert p. a.', 'emw', { suf: 'CHF', hint: 'Entfällt ab Systemwechsel (siehe Annahmen)' })) +
@@ -1197,8 +1296,8 @@ const UBS_PORT = [
     const by = {}; let tot = 0; const laterL = [];
     S.assets.forEach(a => {
       const g = a.type === 'pk' ? 1 : Math.pow(1 + num(a.growth) / 100, yrs);
-      const later = a.type === 'erbe' && E.erbeAge(a, S.profile) > num(S.profile.retireAge);
-      const v = a.type === 'erbe' ? E.erbeValue(a) : num(a.value) * g; if (later) { laterL.push(a); return; } by[a.type] = (by[a.type] || 0) + v; tot += v;
+      const later = E.isInh(a.type) && E.erbeAge(a, S.profile) > num(S.profile.retireAge);
+      const v = E.isInh(a.type) ? E.erbeValue(a) : num(a.value) * g; if (later) { laterL.push(a); return; } by[a.type] = (by[a.type] || 0) + v; tot += v;
     });
     const debt = S.debts.reduce((s, d) => s + num(d.amount), 0);
     $('#a-sum').innerHTML = Object.keys(by).map(k => `<div class="kv"><span>${esc(E.ASSET_TYPES[k].label)}</span><b>${chf(by[k])}</b></div>`).join('') +
@@ -1206,6 +1305,69 @@ const UBS_PORT = [
        ${laterL.map(a => `<div class="kv"><span>zusätzlich: ${esc(a.name || 'Erbe')} ab Alter ${E.erbeAge(a, S.profile)} (nach der Pensionierung)</span><b>${chf(E.erbeValue(a))}</b></div>`).join('')}
        <div class="kv"><span>– Schulden (Kredite)</span><b>${chf(debt)}</b></div>
        <div class="kv tot"><span>Reinvermögen</span><b>${chf(tot - debt)}</b></div>`;
+  }
+
+
+  /* ================= KOMBINATIONEN (frei kombinierbare Vermögensbausteine) ================= */
+  const KO_MODES = {
+    immo: [['in', 'verkaufen'], ['out', 'behalten']], liq: [['in', 'einsetzen'], ['out', 'nicht einsetzen']], pk: [['in', 'als Kapital beziehen'], ['out', 'nicht beziehen']],
+    s3a: [['in', 'einsetzen'], ['out', 'nicht einsetzen']], erbe: [['in', 'erhalten'], ['out', 'ohne']], debt: [['in', 'tilgen'], ['out', 'behalten']],
+    hypo: [['auto', 'automatisch (bei Verkauf tilgen)'], ['in', 'tilgen'], ['out', 'behalten']]
+  };
+  const KO_KIND = { immo: 'Liegenschaft', liq: 'Liquidität / Wertschriften', pk: 'Pensionskasse', s3a: 'Säule 3a', erbe: 'Erbe / Anwartschaft', debt: 'Kredit', hypo: 'Hypothek (ohne Liegenschaft)' };
+  const KO_COL = ['#185FA5', '#2e9e6b', '#c8453b', '#d9822b', '#8b4fb8', '#1baf7a', '#4aa3b5', '#e87ba4', '#898781', '#4a3aa7', '#b0388a', '#7a9a1a'];
+  function koScenario() {
+    const R = scResults(); if (!R.length) return null;
+    return (S.koSc != null && R.find(x => x.s.id === S.koSc)) || R.reduce((x, y) => (y.r.surplus > x.r.surplus ? y : x));
+  }
+  function koSeed() {
+    if (!Array.isArray(S.combos)) S.combos = [];
+    if (!S.koSeeded) { S.koSeeded = true; save(); }
+  }
+  function koVarOf(b) { return S.koVar && S.koVar[b.key] != null ? !!S.koVar[b.key] : ['immo', 'erbe'].includes(b.kind); }
+  const KO_VERB = { immo: 'verkaufen', liq: 'zum Kapital zählen', pk: 'als Kapital beziehen', s3a: 'zum Kapital zählen', erbe: 'erhalten' };
+  function rKombi() {
+    koSeed();
+    const sc = koScenario(), el = $('#p-kombi');
+    if (!sc) { el.innerHTML = '<div class="card"><h2>Kombinationen</h2><p class="muted">Bitte zuerst im Tab «Szenarien &amp; Tragbarkeit» ein Szenario anlegen.</p></div>'; return; }
+    const blocks = E.blocks(S, sc.s).filter(b => KO_VERB[b.kind]), R = scResults();
+    const head = S.combos.map((c, i) => `<th class="kc"><span class="dot" style="background:${KO_COL[i % KO_COL.length]}"></span><input type="text" class="ko-name" data-ko-name="${c.id}" value="${esc(c.name)}"><br><button class="btn sm" data-act="ko-dup" data-id="${c.id}">Kopie</button> <button class="btn sm" data-act="ko-del" data-id="${c.id}">✕</button></th>`).join('');
+    const rows = blocks.map(b => `<tr><td class="l"><b>${esc(b.name)}</b> <span class="verb">${KO_VERB[b.kind]}</span><small>${f0(b.v)} CHF${b.kind === 'immo' && b.linked ? ' · Hypothek ' + f0(b.linked) : ''}</small></td>
+      ${S.combos.map(c => { const cur = ((c.modes && c.modes[b.key]) || b.def) === 'in'; return `<td class="ck"><input type="checkbox" data-ko-cell="${c.id}" data-ko-blk="${b.key}" ${cur ? 'checked' : ''}></td>`; }).join('')}</tr>`).join('');
+    el.innerHTML = `<div class="card"><h2>Kombinationen</h2>
+      <p class="muted"><b>So geht's:</b> Jede Spalte ist eine Kombination. Setzen Sie ein Häkchen, wenn in dieser Kombination getan wird, was in der Zeile steht (z. B. «Eigenheim verkaufen»). Ohne Häkchen bleibt es, wie es ist. Die Auswertung steht darunter.</p>
+      <div class="row gap wrap" style="margin:8px 0"><button class="btn sm pri" data-act="ko-add">+ Kombination</button><button class="btn sm" data-act="ko-gen" title="Bildet alle Möglichkeiten aus Verkauf der Liegenschaften und Erbe">Alle Möglichkeiten erzeugen</button>
+        <label class="small">Szenario <select id="ko-sc">${R.map(x => `<option value="${x.s.id}" ${x.s.id === sc.s.id ? 'selected' : ''}>${esc(x.s.name || 'Szenario')}</option>`).join('')}</select></label></div>
+      <div class="tblwrap"><table class="rt ko"><thead><tr><th class="l">Baustein</th>${head}</tr></thead><tbody>${rows || '<tr><td class="muted">Noch keine Vermögenswerte erfasst.</td></tr>'}</tbody></table></div></div>
+      <div id="ko-out"></div>`;
+    koOut();
+  }
+  function koOut() {
+    const box = $('#ko-out'); if (!box) return; const sc = koScenario(); if (!sc) return;
+    const res = E.combos(S, sc.s, S.combos);
+    if (!res.length) { box.innerHTML = '<div class="card muted">Noch keine Kombination angelegt.</div>'; return; }
+    box.innerHTML = `<div class="card"><h3>Ergebnis</h3>
+      <div class="tblwrap"><table class="rt"><thead><tr><th class="l">Kombination</th><th>Kapital nach Steuern</th><th>Monatliche Entnahme (inkl. AHV)</th><th>Max. Hypothek</th><th>Hypothek bleibt</th><th>Tragbar?</th></tr></thead><tbody>
+      ${res.map((r, i) => `<tr><td class="l"><span class="dot" style="background:${KO_COL[i % KO_COL.length]}"></span><b>${esc(r.name)}</b></td><td>${f0(r.K)}</td><td>${f0(r.mEw)}</td><td class="${cls(r.diffEw)}">${f0(r.maxEw)}</td><td>${f0(r.hypo)}</td><td>${r.tragbarEw ? '✔ ja' : '✘ nein'}</td></tr>`).join('')}</tbody></table></div>
+      <p class="muted small">Entnahme bei Kapitalerhalt (${num(S.settings.retRateEternal)} % Rendite). «Tragbar» heisst: die maximale Hypothek reicht für die Hypothek, die bleibt.</p></div>
+      <div class="card"><h3>Woraus besteht das Kapital?</h3><div class="chartbox" style="height:${Math.max(280, 46 * res.length + 110)}px"><canvas id="c-ko-comp"></canvas></div></div>`;
+    const fmtM = v => (v / 1e6).toFixed(2) + ' Mio', lumHex = c => { const n = parseInt(String(c).slice(1), 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; };
+    const CP = [['liq', 'Liquidität (nach Schulden)', '#185FA5'], ['pk', 'Pensionskasse (nach Steuern)', '#8b4fb8'], ['a3', 'Säule 3a (nach Steuern)', '#2e9e6b'], ['immo', 'Liegenschaften (netto)', '#d9822b'], ['erbe', 'Erbe / Auszahlungen', '#c8453b']];
+    drawChart('c-ko-comp', { type: 'bar', data: { labels: res.map(r => r.name), datasets: CP.filter(([k]) => res.some(r => Math.abs(r.comp[k]) > 1)).map(([k, lab, col]) => ({ label: lab, data: res.map(r => Math.round(r.comp[k])), backgroundColor: col, borderWidth: 1, borderColor: 'rgba(255,255,255,.35)' })) },
+      plugins: [{ id: 'stacklbl', afterDatasetsDraw(ch) { const ctx = ch.ctx; ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '600 12px system-ui,sans-serif'; ch.data.datasets.forEach((ds, di) => ch.getDatasetMeta(di).data.forEach((bar, i) => { const v = ds.data[i], w = Math.abs(bar.x - bar.base); if (!v || w < 56) return; ctx.fillStyle = typeof ds.backgroundColor !== 'string' ? '#8a2a22' : lumHex(ds.backgroundColor) > 0.6 ? '#111' : '#fff'; ctx.fillText(fmtM(v), (bar.x + bar.base) / 2, bar.y); })); ctx.restore(); } }],
+      options: { indexAxis: 'y', maintainAspectRatio: false, scales: { x: { stacked: true, ticks: { callback: v => (v / 1e6).toFixed(1) + ' Mio' } }, y: { stacked: true, grid: { display: false } } }, plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: c => c.dataset.label + ': ' + chf(c.raw) } } } } });
+  }
+  function koGenerate() {
+    const sc = koScenario(); if (!sc) return; const vars = E.blocks(S, sc.s).filter(b => b.kind === 'immo' || b.kind === 'erbe');
+    if (vars.length > 6) { alert('Zu viele Liegenschaften/Erbe (' + vars.length + '): höchstens 6 möglich. Bitte Kombinationen von Hand anlegen.'); return; }
+    if (!vars.length) { alert('Keine Liegenschaft und kein Erbe erfasst: es gibt nichts zu kombinieren.'); return; }
+    const out = [];
+    for (let m = 0; m < (1 << vars.length); m++) {
+      const modes = {}, nm = [];
+      vars.forEach((b, i) => { const on = (m >> i) & 1; modes[b.key] = on ? 'in' : 'out'; nm.push(b.kind === 'immo' ? b.name + (on ? ' verkauft' : ' behalten') : (on ? 'mit ' : 'ohne ') + b.name); });
+      out.push({ id: S.nextId++, name: nm.join(', '), modes });
+    }
+    S.combos = out; save(); rKombi();
   }
 
   /* ================= KREDITE ================= */
@@ -1283,7 +1445,7 @@ const UBS_PORT = [
     scEdit(); scRes();
   }
   function scEdit() {
-    const liq = S.assets.filter(a => E.ASSET_TYPES[a.type].liquid || ['erbe', 'fz', 'geschaeft', 'uebrig'].includes(a.type));
+    const liq = S.assets.filter(a => E.ASSET_TYPES[a.type].liquid || ['erbe', 'scheid', 'fz', 'geschaeft', 'uebrig'].includes(a.type));
     $('#sc-edit').innerHTML = S.scenarios.map((s, i) => `<div class="sccard" style="border-top-color:${SC_COLORS[i % 6]}">
       <div class="ihead"><input type="text" class="iname" value="${esc(s.name)}" data-s="scenarios" data-id="${s.id}" data-k="name">
       <button class="x" title="Duplizieren" data-act="sc-dup" data-id="${s.id}">⧉</button><button class="x" title="Löschen" data-act="del" data-list="scenarios" data-id="${s.id}">×</button></div>
@@ -1523,7 +1685,7 @@ const UBS_PORT = [
     const needK = E.capitalNeeded(gapM, zN, 0, N, restK);
     let lastsT = null; { const f = 1 + zN * 6.5 / 12; let B = K0; for (let t = 0; t < N; t++) { B += laterE.filter(x => x.t === t).reduce((s, x) => s + x.v, 0); const end = B * (1 + zN) - 12 * gapM * f; if (end < 0) { lastsT = t + (B > 0 ? B * (1 + zN) / (12 * gapM * f) : 0); break; } B = end; } }
     const lastsAge = lastsT == null ? null : num(P.retireAge) + lastsT;
-    const L = k => O.lines.find(x => x.k === k) || { K: 0, maxBe: 0, diffBe: 0, mBe: 0 };
+    const L = k => O.all[k] || { K: 0, maxBe: 0, diffBe: 0, mBe: 0 };
     const lvlOf = (ok, warn) => ok ? 'good' : warn ? 'mid' : 'bad';
     const hasHypo = r.netHypo > 0, hasErbe = (O.erbe || 0) > 0 || (O.erbeLater || []).length > 0, erbeLtr = (O.erbeLater || []).reduce((s, x) => s + x.v, 0);
     const cover = gapM > 0 ? (lastsT != null ? Math.min(base / gapM, 0.99) : base / gapM) : 99;           // Deckung der Kapitallücke durch tragbare Entnahme
@@ -1533,8 +1695,16 @@ const UBS_PORT = [
     const A = L('A'), B = L('B'), C = L('C');
     const erbeShare = (C.K - A.K) > 0 && C.K > 0 ? (C.K - A.K) / C.K : 0;
     const ratio = x => (isFinite(x) ? x : 0);
-    const names = { good: 'Solide', mid: 'Knapp', bad: 'Kritisch' };
-    const overall = [tLvl, cLvl].includes('bad') ? 'bad' : [tLvl, cLvl].includes('mid') ? 'mid' : 'good';
+    // Fünfstufige Skala: Kritisch < Knapp < Solide < Sehr solide < Hervorragend (je grösser der Spielraum, desto höher)
+    const RK = ['bad', 'mid', 'good', 'vgood', 'top'];
+    const names = { good: 'Solide', mid: 'Knapp', bad: 'Kritisch', vgood: 'Sehr solide', top: 'Hervorragend' };
+    const tRatio = r.needIncome > 0 ? r.surplus / r.needIncome : 1;
+    const tRank = !r.tragbar ? 0 : tRatio < 0.1 ? 1 : tRatio < 0.25 ? 2 : tRatio < 0.5 ? 3 : 4;
+    const cRatio = gapM > 0 ? base / gapM : 99, loRatio = gapM > 0 ? lo / gapM : 99;
+    let cRank = cLvl === 'bad' ? 0 : cLvl === 'mid' ? 1 : (cRatio < 1.5 ? 2 : cRatio < 2.5 ? 3 : 4);
+    if (cRank >= 3 && loRatio < 1) cRank = 2;          // Aufstufung nur, wenn auch bei 1 Prozentpunkt weniger Rendite gedeckt
+    const tCls = RK[tRank], cCls = RK[cRank], rankMin = Math.min(tRank, cRank), overall = RK[rankMin];
+    const good3 = c => (c === 'vgood' || c === 'top') ? 'good' : c;
     const li = a => a.length ? `<ul>${a.map(x => `<li>${x}</li>`).join('')}</ul>` : '<p class="muted">–</p>';
     const kp = a => `<div class="bkpi">${a.map(([l, v, c]) => `<div class="tile ${c || ''}"><small>${l}</small><b>${v}</b></div>`).join('')}</div>`;
     const sec = (n, title, lvl, kpis, ch, ri, mo) => `<div class="card bsec">
@@ -1545,7 +1715,7 @@ const UBS_PORT = [
     out.push(`<div class="card"><h2>Beurteilung: Chancen, Risiken &amp; Möglichkeiten</h2>
       <div class="fgrid" style="max-width:420px"><div class="fld"><label>Szenario für die Beurteilung</label><div class="ctl"><select id="be-sc">${R.map(x => `<option value="${x.s.id}" ${x.s.id === s.id ? 'selected' : ''}>${esc(x.s.name || 'Szenario')}</option>`).join('')}</select></div></div></div>
       <p class="muted">Qualitative Einordnung der erarbeiteten Zahlen für Szenario «${esc(s.name || 'Szenario')}» (Pensionierung mit ${num(P.retireAge)}, in ${yrs} Jahren). Kapital- und Entnahmeabschnitte folgen den Eingaben im Tab «Entnahmeplan» (Zielbudget, Startkapital, Rendite, Teuerung, Dauer). Die Texte werden regelbasiert aus Ihren aktuellen Eingaben erzeugt und ändern sich mit ihnen. Keine Anlage-, Steuer- oder Rechtsberatung.</p>
-      <div class="verdict ${overall}"><b>Gesamteindruck: ${names[overall]}.</b> Tragbarkeit der Hypothek: <b>${names[tLvl]}</b> · Kapitaldeckung im Ruhestand: <b>${names[cLvl]}</b>. ${overall === 'good' ? 'Die Planung trägt mit Reserve; die Hauptaufgabe ist der Erhalt dieser Reserve.' : overall === 'mid' ? 'Die Planung geht auf, aber mit wenig Spielraum; kleine Abweichungen können sie kippen.' : 'Die Planung geht in dieser Form nicht auf; Anpassungen bei Budget, Hypothek oder Zeitpunkt sind nötig.'}</div></div>`);
+      <div class="verdict ${overall}"><b>Gesamteindruck: ${names[overall]}.</b> Tragbarkeit der Hypothek: <b>${names[tCls]}</b> · Kapitaldeckung im Ruhestand: <b>${names[cCls]}</b>. ${overall === 'top' ? 'Die Planung trägt mit sehr grossem Spielraum, auch bei schwächeren Renditen; Sie können Mittel gezielt für Wünsche, Familie oder Vermächtnis einsetzen.' : overall === 'vgood' ? 'Die Planung trägt mit deutlicher Reserve, auch wenn die Rendite 1 Prozentpunkt tiefer ausfällt; es bleibt Raum für Wünsche.' : overall === 'good' ? 'Die Planung trägt mit Reserve; die Hauptaufgabe ist der Erhalt dieser Reserve.' : overall === 'mid' ? 'Die Planung geht auf, aber mit wenig Spielraum; kleine Abweichungen können sie kippen.' : 'Die Planung geht in dieser Form nicht auf; Anpassungen bei Budget, Hypothek oder Zeitpunkt sind nötig.'}</div></div>`);
 
 
     // 0 Lebensstil
@@ -1639,7 +1809,7 @@ const UBS_PORT = [
     }
 
     // 1 Tragbarkeit
-    out.push(sec(1, 'Tragbarkeit der Hypothek', tLvl,
+    out.push(sec(1, 'Tragbarkeit der Hypothek', tCls,
       [['Anrechenbares Einkommen', chf(r.grossIncome) + ' / J.'], ['Benötigt (33⅓ %-Regel)', chf(r.needIncome) + ' / J.'], ['Überschuss', chf(r.surplus) + ' / J.', r.tragbar ? 'ok' : 'no'], ['Max. Hypothek', chf(r.maxNetHypo)], ['Aktuelle Hypothek', chf(r.netHypo)]],
       [r.tragbar ? `Die Belastung liegt innerhalb der Tragbarkeitsgrenze, mit ${chf(r.surplus)} Einkommensreserve pro Jahr.` : null,
        r.ltv > 0 && r.ltv <= 0.65 ? `Belehnung ${pct(r.ltv)} liegt unter 65 %: gute Verhandlungsposition bei der Bank.` : null,
@@ -1657,7 +1827,7 @@ const UBS_PORT = [
        'Rechtzeitig vor der Pensionierung ein Bankgespräch führen; Festhypothek mit gestaffelten Laufzeiten reduziert das Zinsrisiko.']));
 
     // 2 Kapital & Entnahme
-    out.push(sec(2, 'Kapital &amp; Entnahmeplan', cLvl,
+    out.push(sec(2, 'Kapital &amp; Entnahmeplan', cCls,
       [['Startkapital', chf(K0)], ['Zielbudget / Einkünfte', chf(tgtM) + ' / ' + chf(incM)], ['Lücke aus Kapital', chf(gapM) + ' / Mt.'], ['Tragbare Entnahme', chf(base) + ' / Mt.', cover >= 1 ? 'ok' : 'no'], ['Kapitalbedarf', chf(needK)], ['Kapital reicht bis', lastsAge == null ? `über Alter ${num(P.retireAge) + N}` : 'Alter ' + lastsAge.toFixed(1), lastsAge == null ? 'ok' : 'no']],
       [cover >= 1 ? `Die tragbare Entnahme (${chf(base)}/Mt.) deckt die Lücke (${chf(gapM)}/Mt.) zu ${f0(cover * 100)} %.` : null,
        lastsAge == null ? `Das Kapital reicht rechnerisch über den Planungshorizont (Alter ${num(P.retireAge) + N}) hinaus.` : null,
@@ -1696,14 +1866,14 @@ const UBS_PORT = [
 
     // 5 Erbe & Varianten
     out.push(sec(5, 'Erbe &amp; Varianten A–E', hasErbe ? (erbeShare < 0.3 ? 'good' : 'mid') : 'good',
-      O.lines.map(x => [`${x.k}: investierbar`, chf(x.K), x.k === 'A' || x.k === 'E' ? '' : '']),
-      [`Variante B (inkl. Verkauf/3a-Freigabe) erreicht ${chf(B.K)} gegenüber ${chf(A.K)} in Variante A.`, hasErbe ? (O.erbe > 0 ? `Erwartetes Erbe von netto ${chf(O.erbe)} stärkt das Polster (Variante C/D).` : `Das erwartete Erbe (netto ${chf(erbeLtr)}, Zufluss ab Alter ${O.erbeLater[0].age}) kommt erst nach der Pensionierung und wird als späterer Zufluss in der Entnahmerechnung berücksichtigt.`) : 'Es ist kein Erbe eingeplant: konservative Basis.'].filter(Boolean),
+      ['A', 'B', 'C', 'D', 'E'].map(k => O.all[k]).filter(Boolean).map(x => [`${x.k}: ${x.short}`, chf(x.K), '']),
+      [O.all.B && Math.abs(B.K - A.K) > 1 ? `Variante B (${[O.has.a3 ? '3a freigegeben' : '', O.has.immo ? 'Liegenschaften verkauft' : ''].filter(Boolean).join(', ')}) erreicht ${chf(B.K)} gegenüber ${chf(A.K)} in Variante A.` : `Ohne 3a und Liegenschaften gibt es nur eine Basis (${chf(A.K)}); weitere Varianten ergeben sich erst, wenn Sie diese Posten erfassen.`, hasErbe ? (O.erbe > 0 ? `Erwartetes Erbe von netto ${chf(O.erbe)} stärkt das Polster (Variante C/D).` : `Das erwartete Erbe (netto ${chf(erbeLtr)}, Zufluss ab Alter ${O.erbeLater[0].age}) kommt erst nach der Pensionierung und wird als späterer Zufluss in der Entnahmerechnung berücksichtigt.`) : 'Es ist kein Erbe eingeplant: konservative Basis.'].filter(Boolean),
       [laterE.length ? `Die Jahre bis zum Zufluss (Alter ${laterE[0].age}) müssen Sie ohne das Erbe finanzieren${lastsT != null && lastsT < laterE[0].t ? '; das Kapital reicht dafür rechnerisch nicht aus' : ''}.` : null, hasErbe && O.erbe > 0 ? `Das Erbe macht ${pct(erbeShare, 0)} des investierbaren Kapitals in Variante C aus; Höhe und Zeitpunkt sind unsicher (Pflichtteile, Erbteilung, Steuern).` : (hasErbe ? 'Höhe und Zeitpunkt des Erbes sind unsicher (Pflichtteile, Erbteilung, Steuern).' : null),
        'Planung auf Erwartungen statt auf gesicherte Mittel (Anwartschaft) kann zu spät korrigiert werden.', `Streuung zwischen A und D: ${chf(Math.abs(L('D').K - A.K))}. Je grösser sie ist, desto abhängiger ist die Planung vom Verkauf oder Erbe.`].filter(Boolean),
-      ['Basisplanung auf Variante A stützen, Erbe als Bonus betrachten.', 'Erbvorbezug oder Schenkung mit den Beteiligten klären (rechtlich beraten lassen).', 'Variante E zeigt den Fall «Hauptwohnsitz behalten»; Variante B/D den vollständigen Verkauf.']));
+      [hasErbe ? 'Basisplanung auf Variante A stützen, Erbe als Bonus betrachten.' : 'Basisplanung auf das vorhandene Kapital (Variante A) stützen.', hasErbe ? 'Erbvorbezug oder Schenkung mit den Beteiligten klären (rechtlich beraten lassen).' : null, O.has.keep ? 'Variante E zeigt den Fall «Liegenschaft behalten», Variante B/D den vollständigen Verkauf.' : (O.has.immo ? 'Markieren Sie unter «Vermögen» eine Liegenschaft als «bleibt im Besitz», um den Fall «Liegenschaft behalten» (Variante E) zu sehen.' : null)].filter(Boolean)));
 
     // 6 Anlage & Rendite
-    const sLvl = lo >= gapM ? 'good' : base >= gapM ? 'mid' : 'bad';
+    const sR = gapM <= 0 ? 4 : lo >= gapM ? (lo / gapM >= 2 ? 4 : lo / gapM >= 1.3 ? 3 : 2) : base >= gapM ? 1 : 0, sLvl = RK[sR];
     out.push(sec(6, 'Anlage, Rendite &amp; Sensitivität', sLvl,
       [[`Entnahme bei ${(zN * 100 - 1).toFixed(1)} %`, chf(lo) + ' / Mt.', lo >= gapM ? 'ok' : 'no'], [`bei ${(zN * 100).toFixed(1)} % (Annahme)`, chf(base) + ' / Mt.', base >= gapM ? 'ok' : 'no'], [`bei ${(zN * 100 + 1).toFixed(1)} %`, chf(hi) + ' / Mt.', hi >= gapM ? 'ok' : 'no'], ['Bedarf', chf(gapM) + ' / Mt.']],
       [`Eine um 1 Prozentpunkt höhere (reale) Rendite erhöht die tragbare Entnahme um ${chf(hi - base)}/Mt.`, 'Breit gestreute, kostengünstige Portfolios (UBS-Portfolios oder ETF-Baukasten, Tab «Anlage-Empfehlung») nutzen langfristige Renditeprämien.', lo >= gapM ? 'Selbst mit 1 Prozentpunkt weniger Rendite bleibt die Lücke gedeckt.' : null].filter(Boolean),
@@ -1722,6 +1892,13 @@ const UBS_PORT = [
     el.innerHTML = out.join('');
   }
 
+  function varNote(O) {
+    const m = [];
+    if (!O.has.immo) m.push('keine Liegenschaft erfasst, daher keine Verkaufsvarianten');
+    if (!O.has.erbe) m.push('kein Erbe bei Pensionierung erfasst, daher keine Varianten mit Erbe');
+    if (O.has.n > 4) m.push('bei mehr als 4 Liegenschaften werden nur Auswahl-Kombinationen gezeigt (alle verkauft, keine, je eine verkauft/behalten)');
+    return `Es werden alle Kombinationen gezeigt: jede Liegenschaft verkauft oder behalten${O.has.erbe ? ', jeweils mit und ohne Erbe' : ''}. Beim Verkauf einer Liegenschaft wird die zugehörige Hypothek aus dem Erlös getilgt (Hypotheken ohne Zuordnung im Tab «Kredite» werden bei jedem Verkauf vollständig getilgt, ordnen Sie sie daher einer Liegenschaft zu); Säule 3a wird frei, sobald mindestens eine Liegenschaft verkauft ist; ohne Verkauf wird gemäss Szenario amortisiert. ${m.length ? 'Hinweis: ' + m.join('; ') + '. ' : ''}${O.lines.length} Kombinationen.`;
+  }
   function rUeb() {
     const P = S.profile, G = S.settings, R = scResults();
     const bestR = R.length ? R.reduce((x, y) => (y.r.surplus > x.r.surplus ? y : x)) : null;
@@ -1736,8 +1913,8 @@ const UBS_PORT = [
       ${married ? `<tr class="sub"><td>Alter Partner/in</td>${O.years.map(y => `<td>${y.ageP == null ? '' : y.ageP}</td>`).join('')}</tr>` : ''}`;
     const body = O.groups.map((g, i) => `<tr><td><span class="dot" style="background:${g.color}"></span>${esc(g.label)}</td>${O.years.map(y => `<td>${f0(y.g[i])}</td>`).join('')}</tr>`).join('') +
       `<tr class="tot"><td>Total Vermögen (brutto, vor Steuern)</td>${O.years.map(y => `<td>${f0(y.total)}</td>`).join('')}</tr>` +
-      O.lines.map(l => `<tr><td><span class="dot" style="background:${l.color}"></span><b>${l.k}</b> · ${esc(l.label)}</td>${O.years.map(y => `<td>${f0(y[l.k])}</td>`).join('')}</tr>`).join('');
-    const ent = O.lines.map(l => `<tr><td><span class="dot" style="background:${l.color}"></span><b>${l.k}</b> · ${esc(l.label)}</td><td>${f0(l.K)}</td>
+      O.lines.map(l => `<tr><td><span class="dot" style="background:${l.color}"></span><b>${l.kd || l.k}</b> · ${esc(l.label)}${l.tag ? ` <span class="muted">(Excel ${l.tag})</span>` : ''}</td>${O.years.map(y => `<td>${f0(y[l.k])}</td>`).join('')}</tr>`).join('');
+    const ent = O.lines.map(l => `<tr><td><span class="dot" style="background:${l.color}"></span><b>${l.kd || l.k}</b> · ${esc(l.label)}${l.tag ? ` <span class="muted">(Excel ${l.tag})</span>` : ''}</td><td>${f0(l.K)}</td>
       <td>${f0(l.mEw)}</td><td>${f0(l.yEw)}</td><td>${f0(l.maxEw)}</td><td class="${cls(l.diffEw)}">${f0(l.diffEw)}</td>
       <td>${f0(l.mBe)}</td><td>${f0(l.yBe)}</td><td>${f0(l.maxBe)}</td><td class="${cls(l.diffBe)}">${f0(l.diffBe)}</td></tr>`).join('');
     $('#p-uebersicht').innerHTML = `
@@ -1746,20 +1923,25 @@ const UBS_PORT = [
         <p class="muted">Alle Eingaben auf einen Blick: Vermögensentwicklung bis zur Pensionierung, Entnahmefähigkeit und maximal tragbare Hypothek – wie die «Normalvariante» im Excel. Kanton ${E.CANTONS[P.canton]}, ${married ? 'Ehepaar' : 'Einzelperson'}, Pensionierung ${O.years[O.years.length - 1].year} (Alter ${P.retireAge}).</p>
         <div class="tiles">
           <div class="tile"><span>Vermögen brutto bei Pensionierung</span><b>${chf(last.total)}</b></div>
-          <div class="tile"><span>Investierbar nach Steuern (A: PK &amp; Liquidität)</span><b>${chf(O.lines[0].K)}</b><span>mit Erbe (C): ${chf(O.lines[2].K)} · Erbe netto: ${chf(O.erbe)}${O.erbeLater.length ? ' · Erbe später: ' + O.erbeLater.map(x => chf(x.v) + ' ab Alter ' + x.age).join(', ') + ' (nicht in A–E enthalten)' : ''}</span></div>
+          <div class="tile"><span>Investierbar nach Steuern (A: PK &amp; Liquidität)</span><b>${chf(O.all.A.K)}</b><span>${O.has.erbe ? `mit Erbe (C): ${chf(O.all.C.K)} · Erbe netto: ${chf(O.erbe)}` : 'kein Erbe bei Pensionierung erfasst'}${O.erbeLater.length ? ' · Erbe später: ' + O.erbeLater.map(x => chf(x.v) + ' ab Alter ' + x.age).join(', ') + ' (nicht in A–E enthalten)' : ''}</span></div>
           <div class="tile"><span>Budget p. a. (ohne Steuern)</span><b>${chf(E.budgetYearly(S.budget, true))}</b></div>
           <div class="tile"><span>Hypotheken nach Amortisation</span><b>${chf(O.hypo)}</b><span>vorher ${chf(O.hypo0)}, Amortisation ${chf(O.amo)}</span></div>
           ${best ? `<div class="tile ${best.r.tragbar ? 'ok' : 'no'}"><span>Bestes Szenario: ${esc(best.s.name)}</span><b>${best.r.tragbar ? '✔ tragbar' : '✘ nicht tragbar'} (${f0(best.r.surplus)})</b></div>` : ''}
         </div></div>
-      <div class="card"><h3>Investierbares Vermögen nach Steuern bei Pensionierung (Varianten A–E)</h3>
+      <div class="card"><h3>Investierbares Vermögen nach Steuern bei Pensionierung (alle Kombinationen)</h3>
         <p class="muted small" style="margin-top:-4px">Das ist das Kapital, aus dem später entnommen wird – je nachdem, was verfügbar gemacht wird.</p>
-        <div class="chartbox"><canvas id="c-inv5"></canvas></div>
-        <div class="lay-defs">${O.lines.map(l => `<div><span class="dot" style="background:${l.color}"></span><b>${l.k}</b> ${esc(l.label)} <span class="muted">· ${chf(l.K)}</span></div>`).join('')}</div></div>
+        <div class="chartbox" style="height:${Math.max(260, 36 * O.lines.length + 90)}px"><canvas id="c-inv5"></canvas></div>
+        <p class="muted small" id="var-note">${varNote(O)}</p>
+        <div class="lay-defs">${O.lines.map(l => `<div><span class="dot" style="background:${l.color}"></span><b>${l.kd || l.k}</b> ${esc(l.label)}${l.tag ? ` <span class="muted">(Excel ${l.tag})</span>` : ''} <span class="muted">· ${chf(l.K)}</span></div>`).join('')}</div></div>
+      <div class="card"><h3>Woraus besteht das investierbare Vermögen?</h3>
+        <p class="muted small" style="margin-top:-4px">Zusammensetzung je Variante bei Pensionierung (nach Steuern): Liquidität abzüglich Schulden, Pensionskasse, 3a, Liegenschaften netto und Erbe. Das Diagramm passt sich Ihren Eingaben an.</p>
+        ${O.erbeLater.length ? `<p class="small" style="background:var(--warnbg,#fff4e0);padding:8px 10px;border-radius:8px"><b>Schraffierter Balken:</b> ${O.erbeLater.map(x => esc(x.name) + ' ' + chf(x.v) + ' (ab Alter ' + x.age + ')').join(', ')}. Dieses Geld fliesst erst nach der Pensionierung und ist darum nicht Teil des Kapitals bei Pensionierung. Es wird aber im Entnahmeplan und in der Tragbarkeit als späterer Zufluss berücksichtigt.</p>` : ''}
+        <div class="chartbox" style="height:${Math.max(280, 44 * O.lines.length + 110)}px"><canvas id="c-comp"></canvas></div></div>
       <div class="card"><h3>Woraus besteht das Vermögen? (brutto, vor Steuern)</h3>
         <p class="muted small" style="margin-top:-4px">Jahr für Jahr bis zur Pensionierung, in Mio. CHF. Liegenschaften sind nach Abzug der Hypothek eingerechnet; ganz oben steht die Summe.</p>
         <div class="chartbox tall"><canvas id="c-proj"></canvas></div></div>
       <div class="card"><h3>Entwicklung des investierbaren Vermögens bis zur Pensionierung</h3>
-        <p class="muted small" style="margin-top:-4px">Verlauf der Varianten A–E; rechts der Wert bei Pensionierung.</p>
+        <p class="muted small" style="margin-top:-4px">Verlauf aller Kombinationen; rechts der Wert bei Pensionierung.</p>
         <div class="chartbox"><canvas id="c-dev"></canvas></div></div>
       <div class="card"><h3>Entnahme & maximal tragbare Hypothek bei Pensionierung</h3>
         <div class="chartbox"><canvas id="c-maxh"></canvas></div>
@@ -1778,11 +1960,26 @@ const UBS_PORT = [
     const lumHex = c => { const n = parseInt(String(c).slice(1), 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; };
     const txtCol = () => getComputedStyle(document.documentElement).getPropertyValue('--text').trim() || '#222';
     const SHORT = { A: 'PK & Liquidität', B: '+ 3a + Liegenschaften', C: 'A + Erbe', D: 'B + Erbe', E: 'D ohne behaltene Liegenschaft' };
+    const CP = [['liq', 'Liquidität (nach Schulden)', '#185FA5'], ['pk', 'Pensionskasse (nach Steuern)', '#8b4fb8'], ['a3', 'Säule 3a (nach Steuern)', '#2e9e6b'], ['immo', 'Liegenschaften (netto)', '#d9822b'], ['erbe', 'Erbe / Auszahlungen', '#c8453b']];
+    const laterTot = (O.erbeLater || []).reduce((s, x) => s + x.v, 0);
+    const hatch = () => { const c = document.createElement('canvas'); c.width = c.height = 10; const g = c.getContext('2d'); g.fillStyle = 'rgba(200,69,59,.10)'; g.fillRect(0, 0, 10, 10); g.strokeStyle = 'rgba(200,69,59,.65)'; g.lineWidth = 2; g.beginPath(); g.moveTo(0, 10); g.lineTo(10, 0); g.stroke(); return g.createPattern(c, 'repeat'); };
+    drawChart('c-comp', {
+      type: 'bar',
+      data: { labels: O.lines.map(l => `${l.kd || l.k} · ${l.short || SHORT[l.k]}`), datasets: CP.filter(([k]) => O.lines.some(l => Math.abs(l.comp[k]) > 1)).map(([k, lab, col]) => ({ label: lab, data: O.lines.map(l => Math.round(l.comp[k])), backgroundColor: col, borderWidth: 1, borderColor: 'rgba(255,255,255,.35)' })).concat(laterTot > 0 ? [{ label: 'Später erwartet (ab Pensionierung, nicht im Kapital)', data: O.lines.map(() => Math.round(laterTot)), backgroundColor: hatch(), borderWidth: 1.5, borderColor: '#c8453b', borderDash: [5, 3] }] : []) },
+      plugins: [{
+        id: 'stacklbl', afterDatasetsDraw(ch) {
+          const ctx = ch.ctx; ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '600 12px system-ui,-apple-system,Segoe UI,sans-serif';
+          ch.data.datasets.forEach((ds, di) => ch.getDatasetMeta(di).data.forEach((bar, i) => { const v = ds.data[i], w = Math.abs(bar.x - bar.base); if (!v || w < 56) return; ctx.fillStyle = typeof ds.backgroundColor !== 'string' ? '#8a2a22' : lumHex(ds.backgroundColor) > 0.6 ? '#111' : '#fff'; ctx.fillText(fmtM(v), (bar.x + bar.base) / 2, bar.y); }));
+          ctx.restore();
+        }
+      }],
+      options: { indexAxis: 'y', maintainAspectRatio: false, scales: { x: { stacked: true, ticks: { callback: v => (v / 1e6).toFixed(1) + ' Mio' } }, y: { stacked: true, grid: { display: false } } }, plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: c => c.dataset.label + ': ' + chf(c.raw) } } } }
+    });
     // 1) Varianten A–E bei Pensionierung: waagrechte Balken mit Wertbeschriftung
     const maxK = Math.max(...O.lines.map(l => l.K), 1);
     drawChart('c-inv5', {
       type: 'bar',
-      data: { labels: O.lines.map(l => `${l.k} · ${SHORT[l.k]}`), datasets: [{ data: O.lines.map(l => Math.round(l.K)), backgroundColor: O.lines.map(l => l.color), borderRadius: 4, barPercentage: .7 }] },
+      data: { labels: O.lines.map(l => `${l.kd || l.k} · ${l.short || SHORT[l.k]}`), datasets: [{ data: O.lines.map(l => Math.round(l.K)), backgroundColor: O.lines.map(l => l.color), borderRadius: 4, barPercentage: .7 }] },
       plugins: [{
         id: 'endlbl', afterDatasetsDraw(ch) {
           const ctx = ch.ctx, meta = ch.getDatasetMeta(0); ctx.save(); ctx.font = '700 13px system-ui,-apple-system,Segoe UI,sans-serif'; ctx.textBaseline = 'middle'; ctx.fillStyle = txtCol();
@@ -1813,7 +2010,7 @@ const UBS_PORT = [
     // 3) Verlauf A–E: Linien mit Beschriftung am Ende
     drawChart('c-dev', {
       type: 'line',
-      data: { labels: O.years.map(y => `${y.year} (${y.age})`), datasets: O.lines.map(l => ({ label: `${l.k} · ${SHORT[l.k]}`, data: O.years.map(y => Math.round(y[l.k])), borderColor: l.color, backgroundColor: l.color, borderWidth: 3, pointRadius: 3, tension: .1, borderDash: ({ C: [9, 5], D: [3, 4], E: [12, 4, 2, 4] })[l.k] || [] })) },
+      data: { labels: O.years.map(y => `${y.year} (${y.age})`), datasets: O.lines.map(l => ({ label: `${l.kd || l.k} · ${l.short || SHORT[l.k]}`, data: O.years.map(y => Math.round(y[l.k])), borderColor: l.color, backgroundColor: l.color, borderWidth: 3, pointRadius: 3, tension: .1, borderDash: ({ C: [9, 5], D: [3, 4], E: [12, 4, 2, 4] })[l.k] || [] })) },
       plugins: [{
         id: 'endlines', afterDatasetsDraw(ch) {
           const ctx = ch.ctx; ctx.save(); ctx.font = '700 12px system-ui,-apple-system,Segoe UI,sans-serif'; ctx.textBaseline = 'middle';
@@ -1837,10 +2034,10 @@ const UBS_PORT = [
     });
     drawChart('c-maxh', {
       data: {
-        labels: O.lines.map(l => l.k + ' · ' + l.label.split(' (')[0]), datasets: [
+        labels: O.lines.map(l => (l.kd || l.k) + ' · ' + l.label.split(' (')[0]), datasets: [
           { type: 'bar', label: 'Max. Hypothek «Ewige Rente»', data: O.lines.map(l => Math.round(l.maxEw)), backgroundColor: '#185FA5' },
           { type: 'bar', label: 'Max. Hypothek «Begrenzte Rente»', data: O.lines.map(l => Math.round(l.maxBe)), backgroundColor: '#2e9e6b' },
-          { type: 'line', label: 'Hypotheken nach Amortisation', data: O.lines.map(() => Math.round(O.hypo)), borderColor: '#c8453b', backgroundColor: '#c8453b', borderWidth: 3, borderDash: [6, 4], pointRadius: 0 }]
+          { type: 'line', label: 'Hypotheken nach Amortisation', data: O.lines.map(l => Math.round(l.hypoC)), borderColor: '#c8453b', backgroundColor: '#c8453b', borderWidth: 3, borderDash: [6, 4], pointRadius: 0 }]
       },
       options: { maintainAspectRatio: false, scales: { y: { ticks: { callback: v => (v / 1e6).toFixed(1) + ' Mio' } } }, plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${chf(c.raw)}` } } } }
     });
@@ -2222,6 +2419,7 @@ const UBS_PORT = [
   }
   document.addEventListener('input', e => {
     const el = e.target;
+    if (el.dataset.koName) { const c = S.combos.find(x => x.id === parseInt(el.dataset.koName, 10)); if (c) { c.name = el.value; save(); koOut(); } return; }
     if (el.id === 'gf-text') { S.goalFree = { text: el.value }; save(); gfPreview(); return; }
     if (el.dataset.ubs) { const p = el.dataset.ubs; S.inv.ubsW[p] = S.inv.ubsW[p] || {}; S.inv.ubsW[p][el.dataset.rid] = el.value === '' ? 0 : parseFloat(el.value); save(); ubsSum(); return; }
     if (el.id === 'tx-cap') { txCap(); return; }
@@ -2236,6 +2434,8 @@ const UBS_PORT = [
      if (e.target.id === 'en-years') { S.entn.yearsClosed = !e.target.open; save(); } }, true);
   document.addEventListener('change', e => {
     const el = e.target;
+    if (el.dataset.koCell) { const c = S.combos.find(x => x.id === parseInt(el.dataset.koCell, 10)); if (c) { c.modes = c.modes || {}; c.modes[el.dataset.koBlk] = el.checked ? 'in' : 'out'; save(); koOut(); } return; }
+    if (el.id === 'ko-sc') { S.koSc = parseInt(el.value, 10); save(); koOut(); return; }
     if (el.id === 'inspo-n') { S.inspo = Object.assign({ n: 3, round: 0 }, S.inspo); S.inspo.n = parseInt(el.value, 10); S.inspoOpen = true; save(); rBeurt(); return; }
     if (el.id === 'be-sc') { S.beSc = parseInt(el.value, 10); save(); rBeurt(); return; }
     if (el.id === 'ue-sc') { S.ueSc = parseInt(el.value, 10); save(); rUeb(); return; }
@@ -2276,7 +2476,7 @@ const UBS_PORT = [
     else if (a === 'asset-add') {
       const t = $('#a-type').value, T = E.ASSET_TYPES[t];
       const o = { id: S.nextId++, type: t, name: T.label.split(' (')[0].split(',')[0], value: 0, growth: T.g, avail: true };
-      if (t === 'pk') { o.rente = 0; o.growth = 0; } if (t === 'erbe') { o.share = 100; o.taxPct = 0; o.arrive = S.profile.retireAge; o.avail = true; } if (t === 'immo') { o.use = 'own'; o.steuerwert = ''; o.emw = 0; o.rent = 0; }
+      if (t === 'pk') { o.rente = 0; o.growth = 0; } if (E.isInh(t)) { o.share = 100; o.taxPct = 0; o.arrive = S.profile.retireAge; o.avail = true; } if (t === 'immo') { o.use = 'own'; o.steuerwert = ''; o.emw = 0; o.rent = 0; }
       S.assets.push(o); save(); rVermoegen();
     } else if (a === 'debt-add') {
       const t = $('#d-type').value; S.debts.push({ id: S.nextId++, type: t, name: E.DEBT_TYPES[t].split(' (')[0].split(' /')[0], amount: 0, rate: t === 'hypo' ? 2 : 0, monthly: 0, amort: 0, pay: 0 });
@@ -2285,6 +2485,10 @@ const UBS_PORT = [
     else if (a === 'inspo-more') { S.inspo = Object.assign({ n: 3, round: 0 }, S.inspo); S.inspo.round++; S.inspo.shown = true; S.inspoOpen = true; save(); rBeurt(); }
     else if (a === 'inspo-reset') { S.inspo = { n: (S.inspo && S.inspo.n) || 3, round: 0 }; save(); rBeurt(); }
     else if (a === 'goal-all') { S.goals.forEach(g => g.open = b.dataset.v === '1'); save(); document.querySelectorAll('details.goal').forEach(d => d.open = b.dataset.v === '1'); }
+    else if (a === 'ko-add') { S.combos.push({ id: S.nextId++, name: 'Kombination ' + (S.combos.length + 1), modes: {} }); save(); rKombi(); }
+    else if (a === 'ko-del') { S.combos = S.combos.filter(c => c.id !== id); save(); rKombi(); }
+    else if (a === 'ko-dup') { const c = S.combos.find(x => x.id === id); if (c) { S.combos.push({ id: S.nextId++, name: c.name + ' (Kopie)', modes: Object.assign({}, c.modes) }); save(); rKombi(); } }
+    else if (a === 'ko-gen') koGenerate();
     else if (a === 'goal-seed') { seedGoals(); save(); rSettings(); }
     else if (a === 'goal-add') { S.goals.push({ id: S.nextId++, std: false, dim: 'reisen', dimName: '', title: '', desc: '', yearly: '', once: '', fromAge: S.profile.retireAge, prio: 'important' }); save(); rSettings(); }
     else if (a === 'sc-add') { S.scenarios.push(newScenario(S, 'Szenario ' + (S.scenarios.length + 1), 50)); save(); rSzen(); }
