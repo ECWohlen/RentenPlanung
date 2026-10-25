@@ -182,6 +182,9 @@ table.ko td.ck{text-align:center}table.ko td.ck input{width:20px;height:20px}.ve
 .rp-doc .rt th,.rp-doc .rt td{text-align:right}.rp-doc .rt th:first-child,.rp-doc .rt td:first-child{text-align:left}.rp-doc .rt .sec td,.rp-doc .rt .sec th{text-align:left}
 .rp-doc .tblwrap{overflow:visible}.rp-doc .rp-tbl table{font-size:10.5px}.rp-doc .rp-tbl th,.rp-doc .rp-tbl td{padding:3px 5px}.rp-two .rp-ch{height:360px}
 @media print{.rp-doc .rp-tbl table{break-inside:auto!important}.rp-doc .rp-tbl tr{break-inside:avoid}}
+.mixer .mxitem{border-top:1px solid var(--line,#e2e0d8);padding:10px 0}.mixer h4{margin:0 0 6px}.mxrow{display:grid;grid-template-columns:130px 34px 1fr 34px 130px 150px;gap:8px;align-items:center;margin:4px 0}.mxrow input[type=range]{width:100%}.mxval{text-align:right}
+@media(max-width:800px){.mxrow{grid-template-columns:1fr 34px 2fr 34px}.mxrow .mxval,.mxrow .muted{grid-column:1/-1;text-align:left}}
+@media print{.mixer{display:none!important}}
 </style></head>
 <body>
 <header><div id="bgbar"><label>Seitenhintergrund <select id="bg-sel"></select></label><input type="color" id="bg-col" value="#f5f4ef" title="Eigene Farbe" hidden><button type="button" id="lay-btn" class="btn sm">Layout bearbeiten</button><label>Sektionen <select id="card-sel"></select></label><input type="color" id="card-col" value="#ffffff" title="Eigene Farbe" hidden></div><h1>Rentenplanung Schweiz</h1>
@@ -717,6 +720,21 @@ const Engine = (function () {
     const erbeLater = S.assets.filter(a => E.isInh(a.type) && a.avail !== false && E.erbeAge(a, P) > num(P.retireAge)).map(a => ({ age: E.erbeAge(a, P), v: E.erbeValue(a), name: a.name || 'Erbe' }));
     return { erbe: erbeNet, erbeLater, all, hidden, has, amo, amoLiq, s3a, ubase, hypo0, years, groups: groups.map(g => ({ label: g[0], color: g[2] })), lines, hypo, ahvM, yrs, N };
   };
+
+  /* ---------- Mischpult: Was-wäre-wenn für Erbe / Scheidungsauszahlung (S.entn.mix) ---------- */
+  E.effS = function (S) {
+    const m = S.entn && S.entn.mix; if (!m || !S.assets) return S;
+    let ch = false;
+    const assets = S.assets.map(a => {
+      if (!E.isInh(a.type)) return a; const o = m[a.id]; if (!o) return a; ch = true;
+      const b = Object.assign({}, a);
+      if (o.v != null) { b.value = o.v; b.share = 100; b.taxPct = 0; }
+      if (o.age != null) b.arrive = o.age;
+      return b;
+    });
+    return ch ? Object.assign({}, S, { assets }) : S;
+  };
+  ['calc', 'overview', 'blocks', 'combos'].forEach(n => { const f = E[n]; E[n] = function (S, ...r) { return f.call(E, E.effS(S), ...r); }; });
 
   return E;
 })();
@@ -1782,6 +1800,7 @@ const UBS_PORT = [
     <div class="rp-doc">
       <div class="rp-title"><div class="rp-kick">Management Report</div><h1>Rentenplanung ${esc(P.name || 'Schweiz')}</h1><div class="muted">Stand ${dt} · Pensionierung mit ${num(P.retireAge)} (in ${B.yrs} Jahren) · Planungshorizont ${num(P.lifeAge)}</div></div>
       <div class="verdict ${B.overall}"><b>Gesamteindruck: ${nm[B.overall]}.</b> ${verdictTxt}</div>
+      ${mixNote()}
 
       <h2>1. Management Summary</h2>
       <p>${who} (${num(P.age)} Jahre, ${civT}${P.ort ? ', ' + esc(P.ort) : ''}${P.canton ? ' ' + esc(P.canton) : ''}) plant die Pensionierung mit ${num(P.retireAge)} Jahren. Bei diesem Zeitpunkt stehen im gewählten Szenario «${esc(s.name)}» nach Steuern ${chfm(r.L0)} als investierbares Kapital zur Verfügung. Die Steuern auf den Kapitalbezug betragen ${chfm(r.capTax.total)}.${laterTxt}</p>
@@ -2045,7 +2064,7 @@ const UBS_PORT = [
     if (!acts.length) acts.push('<b>Plan bestätigt:</b> jährlich überprüfen (Marktentwicklung, Zinsen, Gesetze, Gesundheit) und Annahmen im Tab «Annahmen &amp; Daten» nachführen.');
     acts.push('<b>Regelmässig prüfen:</b> mindestens jährlich sowie bei grösseren Ereignissen (Zinssprung, Erbe, Verkauf, Gesundheit).');
     out.push(`<div class="card bsec"><h2>7 · Fazit &amp; nächste Schritte</h2>${li(acts)}<p class="muted">Hinweis: Alle Aussagen beruhen auf Ihren Annahmen und vereinfachten Modellen. Sie ersetzen keine individuelle Beratung durch Bank, Steuer- oder Vorsorgespezialisten.</p></div>`);
-    el.innerHTML = out.join('');
+    el.innerHTML = mixNote() + out.join('');
     const path = []; { const f = 1 + zN * 6.5 / 12; let Bk = K0; for (let t = 0; t < N; t++) { Bk += laterE.filter(x => x.t === t).reduce((s, x) => s + x.v, 0); path.push({ age: num(P.retireAge) + t, v: Bk }); Bk = Math.max(0, Bk * (1 + zN) - 12 * gapM * f); } path.push({ age: num(P.retireAge) + N, v: Bk }); }
     BE = { sel, r, s, O, R, K0, tgtM, incM, gapM, base, lo, hi, needK, lastsAge, N, zN, yrs, overall, tCls, cCls, names, secs, acts, cover, path, hasHypo, hasErbe, erbeLtr, taxShare, laterE };
   }
@@ -2228,7 +2247,56 @@ const UBS_PORT = [
           ${inp('Entnahmedauer', 'entn', null, 'years', N.years, { suf: 'Jahre', ph: String(Math.max(1, num(P.lifeAge) - num(P.retireAge))), hint: 'leer = bis Planungshorizont' })}
           ${inp('Gewünschtes Restkapital am Ende', 'entn', null, 'rest', N.rest, { suf: 'CHF' })}
         </div></div>
+      <div id="en-mix"></div>
       <div id="en-out"></div>`;
+    rMix(); entOut();
+  }
+  // ---- Mischpult: Betrag und Zuflussalter von Erbe / Scheidungsauszahlung als Was-wäre-wenn ----
+  function mixItems() {
+    const P = S.profile, mix = (S.entn && S.entn.mix) || {};
+    return S.assets.filter(a => E.isInh(a.type) && E.erbeValue(a) > 0).map(a => {
+      const o = mix[a.id] || {}, v0 = Math.round(E.erbeValue(a)), g0 = Math.round(E.erbeAge(a, P));
+      return { a, v0, g0, v: o.v != null ? o.v : v0, g: o.age != null ? o.age : g0 };
+    });
+  }
+  function mixActive() { return mixItems().filter(x => x.v !== x.v0 || x.g !== x.g0); }
+  function mixNote() {
+    const m = mixActive(); if (!m.length) return '';
+    return `<div class="warn">Mischpult aktiv (Tab «Entnahmeplan»): ${m.map(x => `${esc(x.a.name || E.ASSET_TYPES[x.a.type].label)} ${chf(x.v)} ab Alter ${x.g} statt ${chf(x.v0)} ab Alter ${x.g0}`).join('; ')}. Alle Berechnungen rechnen mit diesen Werten.</div>`;
+  }
+  function mixSet(id, field, val) {
+    S.entn.mix = S.entn.mix || {}; const o = S.entn.mix[id] = S.entn.mix[id] || {};
+    if (field === 'v') o.v = val; else o.age = val;
+    const it = mixItems().find(x => x.a.id === id);
+    if (it) { if (o.v === it.v0) delete o.v; if (o.age === it.g0) delete o.age; }
+    if (!Object.keys(o).length) delete S.entn.mix[id];
+    if (!Object.keys(S.entn.mix).length) delete S.entn.mix;
+    save();
+  }
+  function rMix() {
+    const el = $('#en-mix'); if (!el) return;
+    const P = S.profile, items = mixItems();
+    if (!items.length) { el.innerHTML = ''; return; }
+    const age0 = Math.round(num(P.age)), age1 = Math.max(age0 + 1, Math.round(num(P.lifeAge)));
+    const row = (it, f) => {
+      const isV = f === 'v', cur = isV ? it.v : it.g, mx = isV ? Math.max(Math.ceil(it.v0 * 2 / 50000) * 50000, it.v0 + 100000) : age1;
+      return `<div class="mxrow"><label>${isV ? 'Betrag (netto)' : 'Zufluss im Alter'}</label>
+        <button class="btn sm" data-act="mix-step" data-mid="${it.a.id}" data-f="${f}" data-d="-1">−</button>
+        <input type="range" data-mix="${it.a.id}" data-f="${f}" min="${isV ? 0 : age0}" max="${mx}" step="${isV ? 500 : 1}" value="${cur}">
+        <button class="btn sm" data-act="mix-step" data-mid="${it.a.id}" data-f="${f}" data-d="1">+</button>
+        <b class="mxval" data-mixval="${it.a.id}-${f}">${isV ? chf(cur) : cur + ' Jahre'}</b>
+        <span class="muted small">erfasst: ${isV ? chf(isV ? it.v0 : it.g0) : it.g0 + ' Jahre'}</span></div>`;
+    };
+    el.innerHTML = `<div class="card mixer"><div class="row between wrap gap"><div><h3 style="margin:0">Mischpult: unsichere Zuflüsse</h3><p class="muted small" style="margin:4px 0 0">Verändern Sie Betrag und Eintrittsalter und sehen Sie sofort die Wirkung auf Grafik und Tabellen (Was-wäre-wenn). Die Werte unter «Vermögen» bleiben unverändert.</p></div>
+      <button class="btn sm" data-act="mix-reset" ${mixActive().length ? '' : 'disabled'}>Zurücksetzen auf erfasste Werte</button></div>
+      ${items.map(it => `<div class="mxitem"><h4>${esc(it.a.name || E.ASSET_TYPES[it.a.type].label)} </h4>${row(it, 'v')}${row(it, 'age')}${it.a.avail === false ? '<p class="muted small">Im Vermögen als «nicht verfügbar» markiert – wird aktuell nicht eingerechnet.</p>' : ''}</div>`).join('')}</div>`;
+  }
+  function mixApply(id, f, val) {
+    mixSet(id, f, val);
+    const it = mixItems().find(x => x.a.id === id); if (!it) return;
+    const lab = document.querySelector(`[data-mixval="${id}-${f}"]`); if (lab) lab.textContent = f === 'v' ? chf(it.v) : it.g + ' Jahre';
+    const rb = document.querySelector('[data-act="mix-reset"]'); if (rb) rb.disabled = !mixActive().length;
+    const st = document.querySelector('#p-entnahme [data-k="start"]'), sel = entScenario(); if (st && sel) st.placeholder = f0(entK0(S.entn, sel.r));
     entOut();
   }
   function entOut() {
@@ -2584,6 +2652,7 @@ const UBS_PORT = [
   }
   document.addEventListener('input', e => {
     const el = e.target;
+    if (el.dataset.mix) { mixApply(parseInt(el.dataset.mix, 10), el.dataset.f, parseFloat(el.value)); return; }
     if (el.dataset.koName) { const c = S.combos.find(x => x.id === parseInt(el.dataset.koName, 10)); if (c) { c.name = el.value; save(); koOut(); } return; }
     if (el.id === 'gf-text') { S.goalFree = { text: el.value }; save(); gfPreview(); return; }
     if (el.dataset.ubs) { const p = el.dataset.ubs; S.inv.ubsW[p] = S.inv.ubsW[p] || {}; S.inv.ubsW[p][el.dataset.rid] = el.value === '' ? 0 : parseFloat(el.value); save(); ubsSum(); return; }
@@ -2629,6 +2698,8 @@ const UBS_PORT = [
   document.addEventListener('click', e => {
     const b = e.target.closest('[data-act]'); if (!b) return;
     const a = b.dataset.act, id = b.dataset.id ? parseInt(b.dataset.id, 10) : null;
+    if (a === 'mix-step') { const mid = parseInt(b.dataset.mid, 10), f = b.dataset.f, sl = document.querySelector(`input[data-mix="${mid}"][data-f="${f}"]`); if (sl) { const d = parseFloat(b.dataset.d) * (f === 'v' ? 5000 : 1); sl.value = Math.min(parseFloat(sl.max), Math.max(parseFloat(sl.min), parseFloat(sl.value) + d)); mixApply(mid, f, parseFloat(sl.value)); } return; }
+    if (a === 'mix-reset') { delete S.entn.mix; save(); rMix(); entOut(); const st = document.querySelector('#p-entnahme [data-k="start"]'), sel = entScenario(); if (st && sel) st.placeholder = f0(entK0(S.entn, sel.r)); return; }
     if (a === 'del') {
       const l = b.dataset.list; S[l] = S[l].filter(x => x.id !== id);
       if (l === 'assets') S.scenarios.forEach(s => s.exclude = (s.exclude || []).filter(x => x !== id));
