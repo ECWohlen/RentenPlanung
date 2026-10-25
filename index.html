@@ -162,6 +162,26 @@ textarea.gf{width:100%;box-sizing:border-box;padding:8px;border-radius:8px;borde
 .verdict.vgood{background:rgba(15,107,58,.16);border-left-color:#0f6b3a}.verdict.top{background:rgba(11,79,138,.14);border-left-color:#0b4f8a}
 table.ko td.l,table.rt td.l{min-width:150px}table.ko .ko-name{max-width:150px}table.ko th.kc{min-width:140px;vertical-align:top}
 table.ko td.ck{text-align:center}table.ko td.ck input{width:20px;height:20px}.verb{opacity:.75;font-size:13px}table.ko td.l small{display:block;opacity:.7}
+/* Management Report */
+.rp-doc{background:#fff;color:#222;border:1px solid var(--line,#e2e0d8);border-radius:12px;padding:28px 34px;max-width:900px;margin:12px auto;line-height:1.5}
+.rp-doc h1{margin:2px 0 4px;font-size:28px}.rp-doc h2{margin:26px 0 8px;font-size:18px;border-bottom:2px solid #185FA5;padding-bottom:4px;break-after:avoid}
+.rp-doc h3{font-size:15px;margin:14px 0 6px}.rp-doc h4{margin:4px 0;font-size:13px}.rp-kick{color:#185FA5;font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:12px}
+.rp-doc .muted{color:#666}.rp-doc table{width:100%;font-size:13px}.rp-doc td.r,.rp-doc th{text-align:right}.rp-doc th.l,.rp-doc td:first-child{text-align:left}.rp-doc tr.sel{background:#eaf2fb;font-weight:600}
+.rp-kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0}.rp-kpi div{border:1px solid #ddd;border-radius:8px;padding:8px 10px}.rp-kpi small{display:block;color:#666;font-size:11px}.rp-kpi b{font-size:16px}
+.rp-two{display:grid;grid-template-columns:1.2fr 1fr;gap:18px;align-items:start}.rp-ch{height:280px;margin:10px 0;break-inside:avoid}
+.rp-sec{break-inside:avoid;margin-bottom:8px}.rp-doc .bgrid{grid-template-columns:1fr 1fr}.rp-doc ul{margin:4px 0 4px 18px;padding:0}.rp-doc li{margin:2px 0;font-size:13px}
+.rp-foot{margin-top:26px;border-top:1px solid #ddd;padding-top:8px;font-size:11px;color:#666}
+@media screen and (max-width:700px){.rp-two,.rp-kpi,.rp-doc .bgrid{grid-template-columns:1fr}.rp-doc{padding:16px}}
+@media print{
+  body.tab-report .page:not(#p-report),body.tab-report header,body.tab-report #tabs,body.tab-report footer,.rp-ctl{display:none!important}
+  body.tab-report{background:#fff}.rp-doc{border:0;border-radius:0;padding:0;max-width:none;margin:0}
+  @page{size:A4;margin:14mm}.rp-doc h2{break-after:avoid}.rp-doc table,.rp-sec,.rp-kpi,.verdict{break-inside:avoid}
+}
+.rp-doc td.muted{text-align:left}
+.rp-img{display:block;width:100%;height:auto;margin:10px 0;break-inside:avoid}.rp-tbl{overflow:visible}.rp-doc .tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:10px 0}.rp-doc .tile{border:1px solid #ddd;border-radius:8px;padding:8px 10px;background:#fff;break-inside:avoid}.rp-doc .tile b{display:block;font-size:16px}.rp-doc .tile span{font-size:11px;color:#666}
+.rp-doc .rt th,.rp-doc .rt td{text-align:right}.rp-doc .rt th:first-child,.rp-doc .rt td:first-child{text-align:left}.rp-doc .rt .sec td,.rp-doc .rt .sec th{text-align:left}
+.rp-doc .tblwrap{overflow:visible}.rp-doc .rp-tbl table{font-size:10.5px}.rp-doc .rp-tbl th,.rp-doc .rp-tbl td{padding:3px 5px}.rp-two .rp-ch{height:360px}
+@media print{.rp-doc .rp-tbl table{break-inside:auto!important}.rp-doc .rp-tbl tr{break-inside:avoid}}
 </style></head>
 <body>
 <header><div id="bgbar"><label>Seitenhintergrund <select id="bg-sel"></select></label><input type="color" id="bg-col" value="#f5f4ef" title="Eigene Farbe" hidden><button type="button" id="lay-btn" class="btn sm">Layout bearbeiten</button><label>Sektionen <select id="card-sel"></select></label><input type="color" id="card-col" value="#ffffff" title="Eigene Farbe" hidden></div><h1>Rentenplanung Schweiz</h1>
@@ -1106,12 +1126,13 @@ const UBS_PORT = [
   const TABS = [
     ['budget', 'Budget', '1', '#2a78d6'], ['profil', 'Profil & Wohnort', '2', '#1baf7a'], ['vermoegen', 'Vermögen', '3', '#008300'], ['kredite', 'Kredite', '4', '#e34948'],
     ['vorsorge', 'Vorsorge & Einkünfte', '5', '#8b4fb8'], ['szenarien', 'Szenarien & Tragbarkeit', '6', '#d9822b'], ['entnahme', 'Entnahmeplan', '7', '#4aa3b5'],
-    ['steuern', 'Steuern: Kapital vs. Rente', '8', '#c8453b'], ['anlage', 'Anlage-Empfehlung', '9', '#4a3aa7'], ['kombi', 'Kombinationen', '◆', '#2a9d8f'], ['uebersicht', 'Gesamtübersicht', '★', '#185FA5'], ['beurteilung', 'Beurteilung', '✔', '#b0388a'], ['settings', 'Annahmen & Daten', '⚙', '#6b6a64']
+    ['steuern', 'Steuern: Kapital vs. Rente', '8', '#c8453b'], ['anlage', 'Anlage-Empfehlung', '9', '#4a3aa7'], ['kombi', 'Kombinationen', '◆', '#2a9d8f'], ['uebersicht', 'Gesamtübersicht', '★', '#185FA5'], ['beurteilung', 'Beurteilung', '✔', '#b0388a'], ['report', 'Management Report', '▤', '#1f3a5f'], ['settings', 'Annahmen & Daten', '⚙', '#6b6a64']
   ];
   let curTab = 'budget';
+  let BE = null;
   const charts = {};
   function showTab(t) {
-    curTab = t;
+    curTab = t; document.body.classList.toggle('tab-report', t === 'report');
     $$('.tab').forEach(b => b.classList.toggle('on', b.dataset.t === t));
     $$('.page').forEach(p => p.classList.toggle('on', p.id === 'p-' + t));
     renderPage(t);
@@ -1119,7 +1140,7 @@ const UBS_PORT = [
     window.scrollTo({ top: 0 });
     try { sessionStorage.setItem('rp_tab', t); } catch (e) { }
   }
-  function renderPage(t) { ({ budget: rBudget, profil: rProfil, vermoegen: rVermoegen, kredite: rKredite, vorsorge: rVorsorge, szenarien: rSzen, steuern: rSteuern, entnahme: rEntn, anlage: rAnlage, kombi: rKombi, uebersicht: rUeb, beurteilung: rBeurt, settings: rSettings })[t](); }
+  function renderPage(t) { ({ budget: rBudget, profil: rProfil, vermoegen: rVermoegen, kredite: rKredite, vorsorge: rVorsorge, szenarien: rSzen, steuern: rSteuern, entnahme: rEntn, anlage: rAnlage, kombi: rKombi, uebersicht: rUeb, beurteilung: rBeurt, report: rReport, settings: rSettings })[t](); }
   let cardDark = null;
   function drawChart(id, cfg) {
     const el = document.getElementById(id); if (!el) return;
@@ -1672,6 +1693,136 @@ const UBS_PORT = [
       <p class="muted small">Ausgewählt im Oktober 2026 per Websuche. Die Links öffnen externe Seiten (Internetverbindung nötig), die Inhalte habe ich nur stichprobenartig geprüft und sie können sich ändern. Keine Empfehlung oder Werbung.</p>
       <div class="lgrid">${INSPO.map(([t, ls]) => `<div class="lcol"><h3>${t}</h3><ul class="glist">${ls.map(([n, u, d]) => `<li><a href="${u}" target="_blank" rel="noopener noreferrer">${esc(n)}</a><br><small>${esc(d)}</small></li>`).join('')}</ul></div>`).join('')}</div></details>`;
   }
+
+  // ---- Management Report: Original-Grafiken der Tabs als Bild übernehmen, mit gut lesbaren Werten ----
+  const RP_LABELS = {
+    id: 'rpLabels',
+    afterDatasetsDraw(ch) {
+      if (!ch._rp) return;
+      const ctx = ch.ctx, fm = v => Math.abs(v) >= 1e6 ? (v / 1e6).toFixed(2) + ' Mio' : f0(v), fk = v => Math.abs(v) >= 1000 ? f0(Math.round(v / 1000)) + 'k' : f0(v);
+      const put = (t, x, y, col, al, bs) => { ctx.font = '700 ' + (bs || 14) + 'px system-ui,-apple-system,Segoe UI,sans-serif'; ctx.textAlign = al || 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(255,255,255,.92)'; ctx.strokeText(t, x, y); ctx.fillStyle = col; ctx.fillText(t, x, y); };
+      ctx.save();
+      const horiz = ch.options.indexAxis === 'y', nds = ch.data.datasets.length;
+      ch.data.datasets.forEach((ds, di) => {
+        const meta = ch.getDatasetMeta(di); if (meta.hidden || ch.getDatasetMeta(di).visible === false) return;
+        const type = ds.type || ch.config.type, col = (typeof ds.borderColor === 'string' ? ds.borderColor : '#222');
+        if (type === 'line') {
+          const n = ds.data.length, step = Math.max(1, Math.round((n - 1) / (nds > 1 ? 3 : 6)));
+          meta.data.forEach((pt, i) => { const v = ds.data[i]; if (v == null || isNaN(v)) return; const show = ds.showLine === false || i === n - 1 || i % step === 0 && n - 1 - i >= step * 0.6; if (!show) return; put(ds.showLine === false ? fk(v) : fm(v), pt.x, pt.y - 14 - (di % 3) * 13, nds > 1 && typeof ds.borderColor === 'string' ? ds.borderColor : '#111', 'center', 13); });
+        } else {
+          const stacked = ch.options.scales && ch.options.scales[horiz ? 'x' : 'y'] && ch.options.scales[horiz ? 'x' : 'y'].stacked;
+          meta.data.forEach((b, i) => {
+            const v = ds.data[i]; if (!v) return;
+            if (stacked) { const h = Math.abs(horiz ? b.x - b.base : b.y - b.base); if (h < 22) return; put(fk(v), horiz ? (b.x + b.base) / 2 : b.x, horiz ? b.y : (b.y + b.base) / 2, '#111', 'center', 13); }
+            else if (horiz) put(fm(v), b.x + 6, b.y, '#111', 'left', 13);
+            else put(nds > 3 ? fk(v) : fm(v), b.x, b.y - 12, '#111', 'center', nds > 3 ? 12 : 13);
+          });
+        }
+      });
+      ctx.restore();
+    }
+  };
+  Chart.register(RP_LABELS);
+  const CH_FREE = ['c-inv5', 'c-comp', 'c-proj'];       // besitzen bereits eigene Beschriftung
+  function rpSnap() {
+    const imgs = {}, html = {}, saveDark = cardDark, sv = { an: Chart.defaults.animation, dpr: Chart.defaults.devicePixelRatio, fs: Chart.defaults.font.size };
+    cardDark = false; Chart.defaults.animation = false; Chart.defaults.devicePixelRatio = 2; Chart.defaults.font.size = 14;
+    const run = (page, fn, ids, wpx) => {
+      const pg = $('#p-' + page), st = pg.getAttribute('style');
+      pg.style.cssText = 'display:block;position:fixed;left:-10000px;top:0;width:' + (wpx || 1200) + 'px;visibility:hidden';
+      try { fn(); ids.forEach(id => { const ch = charts[id]; if (!ch) return; ch._rp = !CH_FREE.includes(id); ch.resize(); ch.update('none'); imgs[id] = ch.canvas.toDataURL('image/png'); const c = document.getElementById(id); html[id] = c ? c.closest('.card') : null; }); }
+      catch (e) { console.error(e); }
+      if (st == null) pg.removeAttribute('style'); else pg.setAttribute('style', st);
+    };
+    run('szenarien', rSzen, ['c-curve', 'c-inc'], 2000);
+    html.scRes = $('#sc-res') ? $('#sc-res').innerHTML : '';
+    run('uebersicht', rUeb, ['c-inv5', 'c-comp', 'c-proj', 'c-maxh', 'c-sc'], 1200);
+    run('entnahme', rEntn, ['c-ent'], 1200);
+    const tl = $('#en-out .tiles'); html.enTiles = tl ? tl.outerHTML : '';
+    cardDark = saveDark; Chart.defaults.animation = sv.an; Chart.defaults.devicePixelRatio = sv.dpr; Chart.defaults.font.size = sv.fs;
+    return { imgs, html };
+  }
+  function rpTables(card) {      // Tabellen und Hinweise einer Karte ohne Titel, Grafik und Bedienelemente
+    if (!card) return '';
+    const c = card.cloneNode(true);
+    c.querySelectorAll('h3,.chartbox,.ycfg,select,button,input,.lay-defs,.fld').forEach(x => x.remove());
+    return c.innerHTML;
+  }
+  function rReport() {
+    const el = $('#p-report'), R = scResults();
+    if (!R.length) { el.innerHTML = '<div class="card"><h2>Management Report</h2><p class="muted">Bitte zuerst im Tab «Szenarien &amp; Tragbarkeit» ein Szenario anlegen.</p></div>'; return; }
+    const rsel = entScenario(), keepBe = S.beSc; S.beSc = rsel.s.id; rBeurt(); S.beSc = keepBe; const B = BE; if (!B) return;
+    const SN = rpSnap();
+    const P = S.profile, G = S.settings, r = B.r, s = B.s, O = B.O, nm = B.names, now = new Date();
+    const dt = now.toLocaleDateString('de-CH', { day: '2-digit', month: 'long', year: 'numeric' });
+    const civT = { single: 'alleinstehend', married: 'verheiratet', divorcing: 'in Scheidung (wie alleinstehend gerechnet)', partnership: 'in eingetragener Partnerschaft', concubinage: 'im Konkubinat' }[P.civil] || 'alleinstehend';
+    const who = (P.name || '').trim() ? esc(P.name.trim()) : 'Der Haushalt';
+    const chfm = v => 'CHF ' + f0(v);
+    const lastsTxt = B.lastsAge == null ? `über das Planungsalter ${num(P.lifeAge)} hinaus` : `bis etwa Alter ${Math.round(B.lastsAge)}`;
+    const verdictTxt = { top: 'Die Planung ist ausgesprochen robust und lässt einen grossen finanziellen Spielraum.', vgood: 'Die Planung ist sehr solide und verfügt über einen komfortablen Spielraum.', good: 'Die Planung ist solide: Die Ziele sind finanzierbar, der Spielraum ist vorhanden, aber nicht unbegrenzt.', mid: 'Die Planung ist knapp: Sie geht auf, verträgt aber kaum Abweichungen bei Rendite, Zinsen oder Ausgaben.', bad: 'Die Planung ist in der heutigen Form nicht tragfähig und braucht Anpassungen.' }[B.overall];
+    const hypoTxt = !B.hasHypo ? 'Es besteht keine Hypothek, die im Ruhestand getragen werden muss.' : r.tragbar ? `Die verbleibende Hypothek von ${chfm(r.netHypo)} gilt nach der Banklogik (kalkulatorischer Zins ${num(G.calcRate)} %) als tragbar; der Überschuss beträgt ${chfm(r.surplus)} pro Jahr.` : `Die verbleibende Hypothek von ${chfm(r.netHypo)} ist nach der Banklogik (kalkulatorischer Zins ${num(G.calcRate)} %) nicht tragbar; es fehlen ${chfm(Math.abs(r.surplus))} pro Jahr.`;
+    const gapTxt = B.gapM <= 0 ? `Das Zielbudget von ${chfm(B.tgtM)} pro Monat ist durch Renten und Einkünfte (${chfm(B.incM)}) vollständig gedeckt; es braucht keine Entnahme aus dem Kapital.` : `Vom Zielbudget von ${chfm(B.tgtM)} pro Monat decken Renten und Einkünfte ${chfm(B.incM)}; die Lücke von ${chfm(B.gapM)} pro Monat wird aus dem Kapital gedeckt. Die tragbare Entnahme beträgt ${chfm(B.base)} pro Monat (${(B.cover >= 99 ? 0 : B.cover).toFixed(1).replace('.', ',')}-fache Deckung), das Kapital reicht ${lastsTxt}.`;
+    const laterTxt = B.laterE.length ? ` Zusätzlich werden erwartete Zuflüsse von ${chfm(B.erbeLtr)} nach der Pensionierung berücksichtigt.` : '';
+    const exs = S.assets.filter(a => num(a.value) || E.isInh(a.type));
+    const assetRows = exs.map(a => { const v = E.isInh(a.type) ? E.erbeValue(a) : num(a.value); return `<tr><td>${esc(a.name || E.ASSET_TYPES[a.type].label)}</td><td class="muted">${esc(E.ASSET_TYPES[a.type].label.replace(/ \(.*\)/, ''))}${E.isInh(a.type) ? ' (ab Alter ' + E.erbeAge(a, P) + ')' : ''}</td><td class="r">${f0(v)}</td></tr>`; }).join('');
+    const debtRows = S.debts.filter(d => num(d.amount)).map(d => `<tr><td>${esc(d.name || E.DEBT_TYPES[d.type] || 'Kredit')}</td><td class="muted">${d.type === 'hypo' ? 'Hypothek' : 'Kredit'}${d.rate ? ', ' + num(d.rate) + ' %' : ''}</td><td class="r">${f0(num(d.amount))}</td></tr>`).join('');
+    const scRows = R.map(x => `<tr class="${x.s.id === s.id ? 'sel' : ''}"><td>${esc(x.s.name)}${x.s.id === s.id ? ' ◀' : ''}</td><td class="r">${f0(x.r.L0)}</td><td class="r">${f0(x.r.grossIncome)}</td><td class="r">${f0(x.r.needIncome)}</td><td class="r">${f0(x.r.surplus)}</td><td class="r">${f0(x.r.netHypo)}</td><td>${x.r.tragbar ? '✔ ja' : '✘ nein'}</td></tr>`).join('');
+    const lnRows = (O.lines || []).slice(0, 8).map(l => `<tr><td>${esc(l.label)}</td><td class="r">${f0(l.K)}</td><td class="r">${f0(l.mBe)}</td><td class="r">${f0(l.maxBe)}</td></tr>`).join('');
+    const im = id => SN.imgs[id] ? `<img class="rp-img" src="${SN.imgs[id]}" alt="">` : '';
+    const secBlock = x => `<div class="rp-sec"><h3>${x.n}. ${x.title} <span class="bpill ${x.lvl}">${nm[x.lvl]}</span></h3><div class="bgrid"><div class="bcol ch"><h4>Chancen</h4><ul>${x.ch.map(t => `<li>${t}</li>`).join('')}</ul></div><div class="bcol ri"><h4>Risiken</h4><ul>${x.ri.map(t => `<li>${t}</li>`).join('')}</ul></div></div></div>`;
+    const topRisks = B.secs.filter(x => ['bad', 'mid'].includes(x.lvl)).map(x => x.title);
+    const fazit = [
+      `Gesamteindruck: <b>${nm[B.overall]}</b>. ${verdictTxt}`,
+      `Mit dem Szenario «${esc(s.name)}» stehen bei der Pensionierung mit ${num(P.retireAge)} rund ${chfm(r.L0)} nach Steuern zur Verfügung. ${B.gapM <= 0 ? 'Das Zielbudget ist ohne Kapitalverzehr gedeckt.' : `Das Kapital deckt die Budgetlücke ${lastsTxt}.`}`,
+      topRisks.length ? `Aufmerksamkeit verdienen vor allem: ${topRisks.join(', ')}.` : 'In keinem der untersuchten Bereiche wurde eine kritische oder knappe Situation festgestellt.',
+      'Die Annahmen (Rendite, Teuerung, Zinsen, Steuern) sollten mindestens jährlich sowie bei grösseren Ereignissen überprüft und die Planung nachgeführt werden.'
+    ];
+    el.innerHTML = `<div class="card rp-ctl"><div class="row between wrap gap"><h2 style="margin:0">Management Report</h2><div class="row gap wrap"><label class="small">Szenario (wie im Tab Entnahmeplan) <select id="rp-sc"><option value="0" ${!S.entn.sc ? 'selected' : ''}>Bestes Szenario (automatisch)</option>${R.map(x => `<option value="${x.s.id}" ${S.entn.sc === x.s.id ? 'selected' : ''}>${esc(x.s.name || 'Szenario')}</option>`).join('')}</select></label><button class="btn pri" data-act="rp-print">Drucken / als PDF speichern</button></div></div>
+      <p class="muted small" style="margin:6px 0 0">Der Report entsteht aus Ihren Eingaben und folgt jeder Änderung. «Drucken» öffnet den Druckdialog des Browsers; dort «Als PDF speichern» wählen.</p></div>
+    <div class="rp-doc">
+      <div class="rp-title"><div class="rp-kick">Management Report</div><h1>Rentenplanung ${esc(P.name || 'Schweiz')}</h1><div class="muted">Stand ${dt} · Pensionierung mit ${num(P.retireAge)} (in ${B.yrs} Jahren) · Planungshorizont ${num(P.lifeAge)}</div></div>
+      <div class="verdict ${B.overall}"><b>Gesamteindruck: ${nm[B.overall]}.</b> ${verdictTxt}</div>
+
+      <h2>1. Management Summary</h2>
+      <p>${who} (${num(P.age)} Jahre, ${civT}${P.ort ? ', ' + esc(P.ort) : ''}${P.canton ? ' ' + esc(P.canton) : ''}) plant die Pensionierung mit ${num(P.retireAge)} Jahren. Bei diesem Zeitpunkt stehen im gewählten Szenario «${esc(s.name)}» nach Steuern ${chfm(r.L0)} als investierbares Kapital zur Verfügung. Die Steuern auf den Kapitalbezug betragen ${chfm(r.capTax.total)}.${laterTxt}</p>
+      <p>${gapTxt}</p>
+      <p>${hypoTxt}</p>
+      <div class="rp-kpi"><div><small>Kapital bei Pensionierung</small><b>${chfm(B.K0)}</b></div><div><small>Zielbudget / Monat</small><b>${chfm(B.tgtM)}</b></div><div><small>Tragbare Entnahme / Monat</small><b>${chfm(B.base)}</b></div><div><small>Kapital reicht</small><b>${B.lastsAge == null ? '> ' + num(P.lifeAge) : 'bis ' + Math.round(B.lastsAge)}</b></div><div><small>Netto-Hypothek</small><b>${chfm(r.netHypo)}</b></div><div><small>Tragbarkeit</small><b>${r.tragbar ? 'ja' : 'nein'}</b></div></div>
+
+      <h2>2. Ausgangslage: Vermögen und Verpflichtungen</h2>
+      <p>Das erfasste Vermögen verteilt sich wie folgt. Pensionskasse und Säule 3a werden bei Bezug besteuert, Liegenschaften sind mit dem Marktwert erfasst; Hypotheken und Kredite sind separat aufgeführt.</p>
+      <div class="rp-two"><div><table class="rt"><thead><tr><th class="l">Position</th><th class="l">Art</th><th>CHF</th></tr></thead><tbody>${assetRows || '<tr><td colspan="3" class="muted">keine Vermögenswerte erfasst</td></tr>'}${debtRows ? '<tr><th class="l" colspan="3">Verpflichtungen</th></tr>' + debtRows : ''}</tbody></table></div>
+      <div class="chartbox rp-ch"><canvas id="c-rp-v"></canvas></div></div>
+
+      <h2>3. Szenarien im Vergleich</h2>
+      <p>Die Szenarien unterscheiden sich in der Art des Pensionskassenbezugs und der Verwendung des Vermögens. Verglichen werden das verfügbare Kapital, das Einkommen gegenüber dem für die Hypothek notwendigen Einkommen und die Tragbarkeit nach Banklogik. Das für diesen Report gewählte Szenario ist markiert.</p>
+      <div class="tblwrap rp-tbl">${SN.html.scRes}</div>
+      ${im('c-curve')}${im('c-inc')}${im('c-sc')}<div class="rp-tbl">${rpTables(SN.html['c-sc'])}</div>
+
+      <h2>4. Entwicklung des Kapitals im Ruhestand</h2>
+      <p>Bei einer angenommenen realen Rendite von ${(B.zN * 100).toFixed(1).replace('.', ',')} % (nach Teuerung) und einer monatlichen Entnahme von ${chfm(B.gapM)} entwickelt sich das Kapital wie dargestellt. ${B.lastsAge == null ? 'Es reicht bis über das Planungsalter hinaus.' : 'Es ist ' + lastsTxt + ' aufgebraucht.'} Alle Werte verstehen sich in heutiger Kaufkraft.${B.gapM > 0 ? ` Bei einer um einen Prozentpunkt tieferen Rendite sinkt die tragbare Entnahme auf ${chfm(B.lo)} pro Monat, bei einem Prozentpunkt mehr steigt sie auf ${chfm(B.hi)}.` : ''}</p>
+      ${SN.html.enTiles || ''}${im('c-ent')}
+
+      ${(O.lines || []).length > 1 ? `<h2>5. Varianten bei Pensionierung</h2>
+      <p>Je nach Verkauf von Liegenschaften und Eintreffen erwarteter Zuflüsse ergibt sich ein unterschiedliches investierbares Vermögen. Die Grafiken zeigen das Kapital nach Steuern je Variante, seine Zusammensetzung und die Entwicklung des Vermögens bis zur Pensionierung; die Tabelle die daraus ableitbare Entnahme und maximal tragbare Hypothek (Werte wie im Tab «Gesamtübersicht»).</p>
+      ${im('c-inv5')}<p class="muted small">${varNote(O)}</p>${im('c-comp')}${im('c-proj')}${im('c-maxh')}<div class="rp-tbl">${rpTables(SN.html['c-maxh'])}</div>` : ''}
+
+      <h2>6. Beurteilung: Chancen und Risiken</h2>
+      ${B.secs.slice(0, 6).map(secBlock).join('')}
+
+      <h2>7. Fazit</h2>
+      <ul class="rp-fazit">${fazit.map(t => `<li>${t}</li>`).join('')}</ul>
+      <p><b>Nächste Schritte:</b></p><ul>${B.acts.map(t => `<li>${t}</li>`).join('')}</ul>
+
+      <div class="rp-foot">Grundlagen: Steuerjahr 2026, Rendite ${num(S.entn.ret) || '–'} %, Teuerung ${num(S.entn.infl) || '–'} %, kalkulatorischer Hypothekarzins ${num(G.calcRate)} %. Schätzungen ohne Gewähr; keine Steuer-, Vorsorge- oder Anlageberatung. © Rainer von Arx, Waltenschwil. Alle Rechte vorbehalten.</div>
+    </div>`;
+    const light = { color: '#333' };
+    const mk = (id, cfg) => { const c = document.getElementById(id); if (!c) return; if (charts[id]) charts[id].destroy(); cfg.options = Object.assign({ maintainAspectRatio: false, animation: false }, cfg.options || {}); charts[id] = new Chart(c, cfg); };
+    Chart.defaults.color = '#333'; Chart.defaults.borderColor = '#ddd'; Chart.defaults.font.size = 13;
+    const g0 = O.years && O.years[0] ? O.years[0].g : [];
+    const parts = (O.groups || []).map((g, i) => ({ l: g.label, c: g.color, v: Math.max(0, g0[i] || 0) })).filter(x => x.v > 0);
+    mk('c-rp-v', { type: 'doughnut', data: { labels: parts.map(x => x.l + ' · CHF ' + f0(x.v) + ' (' + Math.round(100 * x.v / parts.reduce((s, y) => s + y.v, 0)) + ' %)'), datasets: [{ data: parts.map(x => Math.round(x.v)), backgroundColor: parts.map(x => x.c) }] }, options: { plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, boxWidth: 10, padding: 6 } }, tooltip: { enabled: false } } } });
+  }
   function rBeurt() {
     const P = S.profile, G = S.settings, R = scResults(), el = $('#p-beurteilung');
     if (!R.length) { el.innerHTML = '<div class="card"><h2>Beurteilung</h2><p class="muted">Bitte zuerst im Tab «Szenarien &amp; Tragbarkeit» ein Szenario anlegen.</p></div>'; return; }
@@ -1711,10 +1862,11 @@ const UBS_PORT = [
     const good3 = c => (c === 'vgood' || c === 'top') ? 'good' : c;
     const li = a => a.length ? `<ul>${a.map(x => `<li>${x}</li>`).join('')}</ul>` : '<p class="muted">–</p>';
     const kp = a => `<div class="bkpi">${a.map(([l, v, c]) => `<div class="tile ${c || ''}"><small>${l}</small><b>${v}</b></div>`).join('')}</div>`;
-    const sec = (n, title, lvl, kpis, ch, ri, mo) => `<div class="card bsec">
+    const secs = [];
+    const sec = (n, title, lvl, kpis, ch, ri, mo) => (secs.push({ n, title: title.replace(/&amp;/g, '&'), lvl, kpis, ch, ri, mo }), `<div class="card bsec">
       <div class="row between wrap"><h2>${n} · ${title}</h2><span class="bpill ${lvl}">${names[lvl]}</span></div>
       ${kp(kpis)}
-      <div class="bgrid"><div class="bcol ch"><h3>Chancen</h3>${li(ch)}</div><div class="bcol ri"><h3>Risiken</h3>${li(ri)}</div><div class="bcol mo"><h3>Möglichkeiten</h3>${li(mo)}</div></div></div>`;
+      <div class="bgrid"><div class="bcol ch"><h3>Chancen</h3>${li(ch)}</div><div class="bcol ri"><h3>Risiken</h3>${li(ri)}</div><div class="bcol mo"><h3>Möglichkeiten</h3>${li(mo)}</div></div></div>`);
     const out = [];
     out.push(`<div class="card"><h2>Beurteilung: Chancen, Risiken &amp; Möglichkeiten</h2>
       <div class="fgrid" style="max-width:420px"><div class="fld"><label>Szenario für die Beurteilung</label><div class="ctl"><select id="be-sc">${R.map(x => `<option value="${x.s.id}" ${x.s.id === s.id ? 'selected' : ''}>${esc(x.s.name || 'Szenario')}</option>`).join('')}</select></div></div></div>
@@ -1894,6 +2046,8 @@ const UBS_PORT = [
     acts.push('<b>Regelmässig prüfen:</b> mindestens jährlich sowie bei grösseren Ereignissen (Zinssprung, Erbe, Verkauf, Gesundheit).');
     out.push(`<div class="card bsec"><h2>7 · Fazit &amp; nächste Schritte</h2>${li(acts)}<p class="muted">Hinweis: Alle Aussagen beruhen auf Ihren Annahmen und vereinfachten Modellen. Sie ersetzen keine individuelle Beratung durch Bank, Steuer- oder Vorsorgespezialisten.</p></div>`);
     el.innerHTML = out.join('');
+    const path = []; { const f = 1 + zN * 6.5 / 12; let Bk = K0; for (let t = 0; t < N; t++) { Bk += laterE.filter(x => x.t === t).reduce((s, x) => s + x.v, 0); path.push({ age: num(P.retireAge) + t, v: Bk }); Bk = Math.max(0, Bk * (1 + zN) - 12 * gapM * f); } path.push({ age: num(P.retireAge) + N, v: Bk }); }
+    BE = { sel, r, s, O, R, K0, tgtM, incM, gapM, base, lo, hi, needK, lastsAge, N, zN, yrs, overall, tCls, cCls, names, secs, acts, cover, path, hasHypo, hasErbe, erbeLtr, taxShare, laterE };
   }
 
   function varNote(O) {
@@ -2424,6 +2578,7 @@ const UBS_PORT = [
     else if (curTab === 'szenarien') scRes();
     else if (curTab === 'uebersicht') rUeb();
     else if (curTab === 'beurteilung') rBeurt();
+    else if (curTab === 'report') rReport();
     else if (curTab === 'entnahme') entOut();
     else if (curTab === 'anlage') { if (sc === 'inv' && ['ubsSel', 'ubsShare', 'ubsK'].includes(k)) ubsSum(); else anlOut(); }
   }
@@ -2447,6 +2602,7 @@ const UBS_PORT = [
     if (el.dataset.koCell) { const c = S.combos.find(x => x.id === parseInt(el.dataset.koCell, 10)); if (c) { c.modes = c.modes || {}; c.modes[el.dataset.koBlk] = el.checked ? 'in' : 'out'; save(); koOut(); } return; }
     if (el.id === 'ko-sc') { S.koSc = parseInt(el.value, 10); save(); koOut(); return; }
     if (el.id === 'inspo-n') { S.inspo = Object.assign({ n: 3, round: 0 }, S.inspo); S.inspo.n = parseInt(el.value, 10); S.inspoOpen = true; save(); rBeurt(); return; }
+    if (el.id === 'rp-sc') { S.entn.sc = parseInt(el.value, 10) || 0; S.entn.startSc = 0; S.entn.start = ''; save(); rReport(); return; }
     if (el.id === 'be-sc') { S.beSc = parseInt(el.value, 10); save(); rBeurt(); return; }
     if (el.id === 'ue-sc') { S.ueSc = parseInt(el.value, 10); save(); rUeb(); return; }
     if (el.id === 'imp') { importFile(el.files[0]); return; }
@@ -2496,6 +2652,7 @@ const UBS_PORT = [
       save(); rKredite();
     } else if (a === 'inc-add') { S.incomes.push({ id: S.nextId++, name: 'Neue Einkunft', amount: 0, fromAge: S.profile.retireAge, toAge: '', taxable: true }); save(); rVorsorge(); }
     else if (a === 'inspo-more') { S.inspo = Object.assign({ n: 3, round: 0 }, S.inspo); S.inspo.round++; S.inspo.shown = true; S.inspoOpen = true; save(); rBeurt(); }
+    else if (a === 'rp-print') { window.print(); }
     else if (a === 'inspo-reset') { S.inspo = { n: (S.inspo && S.inspo.n) || 3, round: 0 }; save(); rBeurt(); }
     else if (a === 'goal-all') { S.goals.forEach(g => g.open = b.dataset.v === '1'); save(); document.querySelectorAll('details.goal').forEach(d => d.open = b.dataset.v === '1'); }
     else if (a === 'ko-add') { S.combos.push({ id: S.nextId++, name: 'Kombination ' + (S.combos.length + 1), modes: {} }); save(); rKombi(); }
