@@ -331,6 +331,7 @@ const Engine = (function () {
   };
 
   // Erwarteter Netto-Zufluss aus Erbe/Anwartschaft: Betrag × Anteil × (1 – Erbschaftssteuer)
+  E.erbeAge = (a, P) => (a.arrive === '' || a.arrive == null || !isFinite(parseFloat(a.arrive)) ? num(P.retireAge) : parseFloat(a.arrive));
   E.erbeValue = a => num(a.value) * (a.share === '' || a.share == null ? 1 : num(a.share) / 100) * (1 - num(a.taxPct) / 100);
 
   /* ---------- Budget ---------- */
@@ -380,7 +381,7 @@ const Engine = (function () {
     const excl = new Set(sc.exclude || []);
 
     // Vermögenswerte zum Pensionierungszeitpunkt
-    let erbeIn = 0, liquid = 0, liquidYieldBase = 0, pkCap = 0, pkRent = 0, lump3a = 0;
+    let erbeIn = 0, erbeLater = [], liquid = 0, liquidYieldBase = 0, pkCap = 0, pkRent = 0, lump3a = 0;
     let vw = 0, stw = 0, emw = 0, rentIncome = 0, otherWealth = 0, vwUp = 0, s3aAvail = 0;
     const detail = [];
     for (const a of S.assets) {
@@ -393,7 +394,7 @@ const Engine = (function () {
         continue;
       }
       if (a.type === 'erbe') {
-        if (!excl.has(a.id) && a.avail !== false) { liquid += E.erbeValue(a); erbeIn += E.erbeValue(a); }
+        if (!excl.has(a.id) && a.avail !== false) { const ea = E.erbeAge(a, P); if (ea <= num(P.retireAge)) { liquid += E.erbeValue(a); erbeIn += E.erbeValue(a); } else erbeLater.push({ age: ea, v: E.erbeValue(a), name: a.name || 'Erbe' }); }
         continue;
       }
       if (a.type === 's3a') { if (!excl.has(a.id) && a.avail !== false) s3aAvail += num(a.value) * grow; continue; }
@@ -439,9 +440,12 @@ const Engine = (function () {
     const L0 = Math.max(0, liquid + lumpTotal - capTax.total - amoLiq - oneTime);
 
     // Entnahme aus Kapital
-    const rest = sc.mode === 'ewig' ? L0 : 0;
     const zUse = sc.mode === 'ewig' ? num(G.retRateEternal) / 100 : z;
-    const Mmonth = E.withdrawal(L0, zUse, d, sc.mode === "ewig" ? 100 : N, rest);
+    // Erbe, das erst nach der Pensionierung fliesst: Barwert zählt zur Entnahmebasis (Zwischenphase trägt das vorhandene Kapital)
+    const erbePV = erbeLater.reduce((s, x) => s + x.v / Math.pow(1 + zUse, Math.max(0, x.age - num(P.retireAge))), 0);
+    const L0w = L0 + erbePV;
+    const rest = sc.mode === 'ewig' ? L0w : 0;
+    const Mmonth = E.withdrawal(L0w, zUse, d, sc.mode === "ewig" ? 100 : N, rest);
     const cashYear = Mmonth * 12;
 
     // Einkommen
@@ -499,16 +503,17 @@ const Engine = (function () {
     const fixedIn = pkRent + ahv + otherInc + rentIncome;
     const gap = need - fixedIn; // aus Kapital zu decken (Jahr 1)
     const sim = E.simulate(L0, Math.max(0, gap), z, d, N + 10);
+    erbeLater.forEach(x => { const t0 = Math.max(0, Math.round(x.age - num(P.retireAge))); for (let t = t0; t < sim.length; t++) sim[t] += x.v * Math.pow(1 + z, t - t0); });
     let depl = null;
     for (let t = 1; t < sim.length; t++) if (sim[t] < 0) { depl = t - 1 + sim[t - 1] / (sim[t - 1] - sim[t]); break; }
     const lastsTo = depl == null ? null : num(P.retireAge) + depl;
-    const capNeeded = E.capitalNeeded(Math.max(0, gap) / 12, z, d, N, 0);
+    const capNeeded = Math.max(0, E.capitalNeeded(Math.max(0, gap) / 12, z, d, N, 0) - erbePV);
     const eternal = L0 * num(G.retRateEternal) / 100; // Kapitalerhalt (vereinfacht, vor Dynamik)
     const eternalM = E.withdrawal(L0, num(G.retRateEternal) / 100, d, 100, L0) * 12;
 
     return {
-      erbeIn, yrs, N, retireYear, civ, newRegime, share,
-      liquid, lumpTotal, pkCap, lump3a, s3a, s3aAvail, amo3a, amoLiq, ubase, costUpkeepVW, surplusVW, maxNetHypoVW, pkRent, capTax, L0, amo, oneTime, netHypo, hypoTotal, vw, stw, emw, rentIncome,
+      erbeIn, erbeLater, yrs, N, retireYear, civ, newRegime, share,
+      liquid, lumpTotal, pkCap, lump3a, s3a, s3aAvail, amo3a, amoLiq, ubase, costUpkeepVW, surplusVW, maxNetHypoVW, pkRent, capTax, L0, L0w, erbePV, amo, oneTime, netHypo, hypoTotal, vw, stw, emw, rentIncome,
       Mmonth, cashYear, ahv, otherInc, grossIncome, ltv, costInt, costUpkeep, costOther, costTotal, needIncome, surplus, maxNetHypo, maxLtvAbs,
       taxableIncome, incTax, taxableWealth, wTax, taxYear, taxEff, budgetBase, hypoInterestNet, otherPay, need, fixedIn, gap, sim, lastsTo,
       capNeeded, eternal, eternalM, tragbar: surplus >= 0, otherWealth, effRate, zk, uk, quote, z, d
@@ -551,6 +556,7 @@ const Engine = (function () {
       for (const a of S.assets) {
         const T = E.ASSET_TYPES[a.type]; const grow = a.type === 'pk' ? 1 : Math.pow(1 + num(a.growth) / 100, t);
         let v = a.type === 'erbe' ? E.erbeValue(a) : num(a.value) * grow;
+        if (a.type === 'erbe' && num(P.age) + t < E.erbeAge(a, P)) v = 0;
         const gi = groups.findIndex(g => g[1](a.type)); if (gi >= 0) row.g[gi] += v;
         if (a.type === 'pk') pk += v; else if (a.type === 's3a') a3 += v;
         else if (a.type === 'erbe') { if (a.avail !== false) erbe += v; }
@@ -586,7 +592,8 @@ const Engine = (function () {
       return { k, label, color, K, mEw, mBe, yEw: mEw * 12, yBe: mBe * 12, maxEw: maxH(mEw), maxBe: maxH(mBe), diffEw: maxH(mEw) - hypo, diffBe: maxH(mBe) - hypo };
     });
     const erbeNet = last.g[4] || 0;
-    return { erbe: erbeNet, amo, amoLiq, s3a, ubase, hypo0, years, groups: groups.map(g => ({ label: g[0], color: g[2] })), lines, hypo, ahvM, yrs, N };
+    const erbeLater = S.assets.filter(a => a.type === 'erbe' && a.avail !== false && E.erbeAge(a, P) > num(P.retireAge)).map(a => ({ age: E.erbeAge(a, P), v: E.erbeValue(a), name: a.name || 'Erbe' }));
+    return { erbe: erbeNet, erbeLater, amo, amoLiq, s3a, ubase, hypo0, years, groups: groups.map(g => ({ label: g[0], color: g[2] })), lines, hypo, ahvM, yrs, N };
   };
 
   return E;
@@ -1170,7 +1177,7 @@ const UBS_PORT = [
       const T = E.ASSET_TYPES[a.type]; let body = '';
       const I = (l, k, o) => inp(l, 'assets', a.id, k, a[k], o);
       if (a.type === 'pk') body = I('Altersguthaben bei Pensionierung', 'value', { suf: 'CHF' }) + I('Altersrente p. a. bei Pensionierung', 'rente', { suf: 'CHF', hint: `Umwandlungssatz: <b>${num(a.value) > 0 ? (num(a.rente) / num(a.value) * 100).toFixed(2) : '–'} %</b>` });
-      else if (a.type === 'erbe') body = I('Erwarteter Betrag (brutto)', 'value', { suf: 'CHF' }) + I('Anteil (z. B. Teil-Erbschaft)', 'share', { suf: '%', hint: '100 % = ganzer Betrag' }) + I('Erbschaftssteuer', 'taxPct', { suf: '%', hint: 'Direkte Nachkommen: i. d. R. 0 %. Je nach Kanton unterschiedlich.' }) + I('Zufluss spätestens im Alter', 'arrive', { suf: 'Jahre', hint: 'Bis zur Pensionierung → als Kapital verfügbar' }) + inp('Als Kapital im Ruhestand verfügbar', 'assets', a.id, 'avail', a.avail !== false, { type: 'check' }) + `<div class="fld"><label>Netto-Zufluss</label><b>${chf(E.erbeValue(a))}</b></div>`;
+      else if (a.type === 'erbe') body = I('Erwarteter Betrag (brutto)', 'value', { suf: 'CHF' }) + I('Anteil (z. B. Teil-Erbschaft)', 'share', { suf: '%', hint: '100 % = ganzer Betrag' }) + I('Erbschaftssteuer', 'taxPct', { suf: '%', hint: 'Direkte Nachkommen: i. d. R. 0 %. Je nach Kanton unterschiedlich.' }) + I('Zufluss im Alter', 'arrive', { suf: 'Jahre', hint: 'Alter, in dem das Erbe fliesst (leer = bei Pensionierung). Bis zur Pensionierung → Startkapital; danach → späterer Zufluss in den Berechnungen.' }) + inp('Als Kapital im Ruhestand verfügbar', 'assets', a.id, 'avail', a.avail !== false, { type: 'check' }) + `<div class="fld"><label>Netto-Zufluss</label><b>${chf(E.erbeValue(a))}</b></div>`;
       else if (a.type === 'immo') body = I('Nutzung', 'use', { type: 'select', opts: [['own', 'Selbstbewohnt (Eigenmietwert)'], ['rent', 'Vermietet']] }) + I('Verkehrswert (Marktwert)', 'value', { suf: 'CHF' }) +
         I('Steuerwert', 'steuerwert', { suf: 'CHF', hint: 'Leer = 70 % des Verkehrswerts' }) +
         (a.use === 'rent' ? I('Netto-Mieteinnahmen p. a.', 'rent', { suf: 'CHF' }) : I('Eigenmietwert p. a.', 'emw', { suf: 'CHF', hint: 'Entfällt ab Systemwechsel (siehe Annahmen)' })) +
@@ -1187,14 +1194,16 @@ const UBS_PORT = [
   }
   function assetSum() {
     const yrs = Math.max(0, num(S.profile.retireAge) - num(S.profile.age));
-    const by = {}; let tot = 0;
+    const by = {}; let tot = 0; const laterL = [];
     S.assets.forEach(a => {
       const g = a.type === 'pk' ? 1 : Math.pow(1 + num(a.growth) / 100, yrs);
-      const v = a.type === 'erbe' ? E.erbeValue(a) : num(a.value) * g; by[a.type] = (by[a.type] || 0) + v; tot += v;
+      const later = a.type === 'erbe' && E.erbeAge(a, S.profile) > num(S.profile.retireAge);
+      const v = a.type === 'erbe' ? E.erbeValue(a) : num(a.value) * g; if (later) { laterL.push(a); return; } by[a.type] = (by[a.type] || 0) + v; tot += v;
     });
     const debt = S.debts.reduce((s, d) => s + num(d.amount), 0);
     $('#a-sum').innerHTML = Object.keys(by).map(k => `<div class="kv"><span>${esc(E.ASSET_TYPES[k].label)}</span><b>${chf(by[k])}</b></div>`).join('') +
       `<div class="kv tot"><span>Total Vermögen bei Pensionierung (inkl. Aufzinsung)</span><b>${chf(tot)}</b></div>
+       ${laterL.map(a => `<div class="kv"><span>zusätzlich: ${esc(a.name || 'Erbe')} ab Alter ${E.erbeAge(a, S.profile)} (nach der Pensionierung)</span><b>${chf(E.erbeValue(a))}</b></div>`).join('')}
        <div class="kv"><span>– Schulden (Kredite)</span><b>${chf(debt)}</b></div>
        <div class="kv tot"><span>Reinvermögen</span><b>${chf(tot - debt)}</b></div>`;
   }
@@ -1508,14 +1517,16 @@ const UBS_PORT = [
     const tgtM = pv(EN.target, r.need / 12), incM = pv(EN.income, r.fixedIn / 12), K0 = pv(EN.start, r.L0);
     const capM = (z, K) => E.withdrawal(K, z, 0, N, restK);
     const gapM = Math.max(0, tgtM - incM);
-    const base = capM(zN, K0), lo = capM(zN - 0.01, K0), hi = capM(zN + 0.01, K0);
+    const laterE = (r.erbeLater || []).map(x => ({ t: Math.max(0, Math.round(x.age - num(P.retireAge))), v: x.v, age: x.age })).filter(x => x.t < N);
+    const pvE = z => laterE.reduce((s, x) => s + x.v / Math.pow(1 + z, x.t), 0);
+    const base = capM(zN, K0 + pvE(zN)), lo = capM(zN - 0.01, K0 + pvE(zN - 0.01)), hi = capM(zN + 0.01, K0 + pvE(zN + 0.01));
     const needK = E.capitalNeeded(gapM, zN, 0, N, restK);
-    let lastsT = null; { const f = 1 + zN * 6.5 / 12; let B = K0; for (let t = 0; t < N; t++) { const end = B * (1 + zN) - 12 * gapM * f; if (end < 0) { lastsT = t + (B > 0 ? B * (1 + zN) / (12 * gapM * f) : 0); break; } B = end; } }
+    let lastsT = null; { const f = 1 + zN * 6.5 / 12; let B = K0; for (let t = 0; t < N; t++) { B += laterE.filter(x => x.t === t).reduce((s, x) => s + x.v, 0); const end = B * (1 + zN) - 12 * gapM * f; if (end < 0) { lastsT = t + (B > 0 ? B * (1 + zN) / (12 * gapM * f) : 0); break; } B = end; } }
     const lastsAge = lastsT == null ? null : num(P.retireAge) + lastsT;
     const L = k => O.lines.find(x => x.k === k) || { K: 0, maxBe: 0, diffBe: 0, mBe: 0 };
     const lvlOf = (ok, warn) => ok ? 'good' : warn ? 'mid' : 'bad';
-    const hasHypo = r.netHypo > 0, hasErbe = (O.erbe || 0) > 0;
-    const cover = gapM > 0 ? base / gapM : 99;           // Deckung der Kapitallücke durch tragbare Entnahme
+    const hasHypo = r.netHypo > 0, hasErbe = (O.erbe || 0) > 0 || (O.erbeLater || []).length > 0, erbeLtr = (O.erbeLater || []).reduce((s, x) => s + x.v, 0);
+    const cover = gapM > 0 ? (lastsT != null ? Math.min(base / gapM, 0.99) : base / gapM) : 99;           // Deckung der Kapitallücke durch tragbare Entnahme
     const cLvl = lvlOf(cover >= 1.1, cover >= 1);
     const tLvl = lvlOf(r.tragbar && r.surplus > 0.1 * r.needIncome, r.tragbar);
     const taxShare = r.lumpTotal > 0 ? r.capTax.total / r.lumpTotal : 0;
@@ -1633,12 +1644,14 @@ const UBS_PORT = [
       [r.tragbar ? `Die Belastung liegt innerhalb der Tragbarkeitsgrenze, mit ${chf(r.surplus)} Einkommensreserve pro Jahr.` : null,
        r.ltv > 0 && r.ltv <= 0.65 ? `Belehnung ${pct(r.ltv)} liegt unter 65 %: gute Verhandlungsposition bei der Bank.` : null,
        !hasHypo ? 'Keine Hypothek nach Amortisation: keine Zinsabhängigkeit.' : null,
+       r.erbePV > 0 ? `Das erwartete Erbe (Barwert ${chf(r.erbePV)}, Zufluss später) ist in der Entnahmebasis berücksichtigt; bis dahin trägt das vorhandene Kapital.` : null,
        r.surplusVW > 0 && r.ubase !== 'vw' ? `Auch mit bankenüblichem Unterhalt auf dem Verkehrswert bliebe ein Überschuss von ${chf(r.surplusVW)}.` : null].filter(Boolean),
       [!r.tragbar ? `Die Belastung übersteigt das anrechenbare Einkommen um ${chf(-r.surplus)} pro Jahr; eine Bank dürfte die Hypothek nicht verlängern.` : null,
        r.surplusVW < 0 ? `Mit bankenüblichem Unterhalt auf dem Verkehrswert fehlen ${chf(-r.surplusVW)} pro Jahr: je nach Bank kann das Ergebnis anders ausfallen als hier.` : null,
        `Kalkulatorischer Zins ${num(G.calcRate)} %: ein höherer Bankensatz verschlechtert die Tragbarkeit direkt.`,
        r.ltv > 0.8 ? `Belehnung ${pct(r.ltv)} ist hoch; Banken verlangen ggf. zusätzliche Amortisation.` : null,
-       'Tragbarkeit hängt am Renteneinkommen: Kürzungen bei PK/AHV oder tiefere Kapitalerträge wirken sofort.'].filter(Boolean),
+       'Tragbarkeit hängt am Renteneinkommen: Kürzungen bei PK/AHV oder tiefere Kapitalerträge wirken sofort.',
+       r.erbePV > 0 ? 'Banken rechnen ein noch nicht erhaltenes Erbe in der Regel nicht an; die Tragbarkeit hier hängt davon ab, dass das Erbe tatsächlich wie erwartet fliesst.' : null].filter(Boolean),
       [!r.tragbar ? `Amortisation erhöhen oder Teile verkaufen: Die Hypothek dürfte höchstens ${chf(r.maxNetHypo)} betragen (Differenz ${chf(r.netHypo - r.maxNetHypo)}).` : 'Reserve nutzen, um früher zu amortisieren oder die Hypothek bewusst zu belassen (Liquidität behalten).',
        'Mehrere Szenarien vergleichen (Amortisation, 3a-Verwendung, Staffelung des Kapitalbezugs).',
        'Rechtzeitig vor der Pensionierung ein Bankgespräch führen; Festhypothek mit gestaffelten Laufzeiten reduziert das Zinsrisiko.']));
@@ -1650,7 +1663,7 @@ const UBS_PORT = [
        lastsAge == null ? `Das Kapital reicht rechnerisch über den Planungshorizont (Alter ${num(P.retireAge) + N}) hinaus.` : null,
        gapM === 0 ? 'Das Budget wird vollständig aus Renten und Einkünften gedeckt: kein Kapitalverzehr.' : null,
        K0 * zN > 0 ? `Bei reinem Kapitalerhalt wären rund ${chf(K0 * zN / 12)} pro Monat (real) entnehmbar, ohne den Stamm anzugreifen.` : null].filter(Boolean),
-      [cover < 1 ? `Die Lücke ${chf(gapM)}/Mt. übersteigt die tragbare Entnahme ${chf(base)}/Mt.; es fehlen ${chf(Math.max(0, needK - K0))} Kapital.` : null,
+      [cover < 1 ? `Die Lücke ${chf(gapM)}/Mt. übersteigt die tragbare Entnahme ${chf(base)}/Mt.; es fehlen ${chf(Math.max(0, needK - K0 - pvE(zN)))} Kapital.` : null,
        lastsAge != null ? `Das Kapital ist rechnerisch mit Alter ${lastsAge.toFixed(1)} aufgebraucht, also ${(num(P.retireAge) + N - lastsAge).toFixed(1)} Jahre vor dem Horizont.` : null,
        `Langlebigkeitsrisiko: Horizont Alter ${num(P.retireAge) + N}; wer älter wird, verbraucht Reserven früher als geplant.`,
        `Sequenzrisiko: schwache Börsenjahre direkt nach der Pensionierung wirken überproportional.`,
@@ -1684,8 +1697,8 @@ const UBS_PORT = [
     // 5 Erbe & Varianten
     out.push(sec(5, 'Erbe &amp; Varianten A–E', hasErbe ? (erbeShare < 0.3 ? 'good' : 'mid') : 'good',
       O.lines.map(x => [`${x.k}: investierbar`, chf(x.K), x.k === 'A' || x.k === 'E' ? '' : '']),
-      [`Variante B (inkl. Verkauf/3a-Freigabe) erreicht ${chf(B.K)} gegenüber ${chf(A.K)} in Variante A.`, hasErbe ? `Erwartetes Erbe von netto ${chf(O.erbe)} stärkt das Polster (Variante C/D).` : 'Es ist kein Erbe eingeplant: konservative Basis.'].filter(Boolean),
-      [hasErbe ? `Das Erbe macht ${pct(erbeShare, 0)} des investierbaren Kapitals in Variante C aus; Höhe und Zeitpunkt sind unsicher (Pflichtteile, Erbteilung, Steuern).` : null,
+      [`Variante B (inkl. Verkauf/3a-Freigabe) erreicht ${chf(B.K)} gegenüber ${chf(A.K)} in Variante A.`, hasErbe ? (O.erbe > 0 ? `Erwartetes Erbe von netto ${chf(O.erbe)} stärkt das Polster (Variante C/D).` : `Das erwartete Erbe (netto ${chf(erbeLtr)}, Zufluss ab Alter ${O.erbeLater[0].age}) kommt erst nach der Pensionierung und wird als späterer Zufluss in der Entnahmerechnung berücksichtigt.`) : 'Es ist kein Erbe eingeplant: konservative Basis.'].filter(Boolean),
+      [laterE.length ? `Die Jahre bis zum Zufluss (Alter ${laterE[0].age}) müssen Sie ohne das Erbe finanzieren${lastsT != null && lastsT < laterE[0].t ? '; das Kapital reicht dafür rechnerisch nicht aus' : ''}.` : null, hasErbe && O.erbe > 0 ? `Das Erbe macht ${pct(erbeShare, 0)} des investierbaren Kapitals in Variante C aus; Höhe und Zeitpunkt sind unsicher (Pflichtteile, Erbteilung, Steuern).` : (hasErbe ? 'Höhe und Zeitpunkt des Erbes sind unsicher (Pflichtteile, Erbteilung, Steuern).' : null),
        'Planung auf Erwartungen statt auf gesicherte Mittel (Anwartschaft) kann zu spät korrigiert werden.', `Streuung zwischen A und D: ${chf(Math.abs(L('D').K - A.K))}. Je grösser sie ist, desto abhängiger ist die Planung vom Verkauf oder Erbe.`].filter(Boolean),
       ['Basisplanung auf Variante A stützen, Erbe als Bonus betrachten.', 'Erbvorbezug oder Schenkung mit den Beteiligten klären (rechtlich beraten lassen).', 'Variante E zeigt den Fall «Hauptwohnsitz behalten»; Variante B/D den vollständigen Verkauf.']));
 
@@ -1700,7 +1713,7 @@ const UBS_PORT = [
     // 7 Massnahmen
     const acts = [];
     if (!r.tragbar) acts.push(`<b>Tragbarkeit herstellen:</b> Hypothek um mind. ${chf(r.netHypo - r.maxNetHypo)} reduzieren oder Einkommen erhöhen.`);
-    if (cover < 1) acts.push(`<b>Kapitallücke schliessen:</b> zusätzliches Kapital von ca. ${chf(Math.max(0, needK - K0))} oder Budgetkürzung um ca. ${chf(Math.max(0, gapM - base))} pro Monat.`);
+    if (cover < 1) acts.push(`<b>Kapitallücke schliessen:</b> zusätzliches Kapital von ca. ${chf(Math.max(0, needK - K0 - pvE(zN)))} oder Budgetkürzung um ca. ${chf(Math.max(0, gapM - base))} pro Monat.`);
     if (num(s.stagger, 1) <= 1 && r.lumpTotal > 0) acts.push('<b>Steueroptimierung:</b> Kapitalbezug staffeln.');
     if (hasErbe && erbeShare > 0.3) acts.push('<b>Abhängigkeit vom Erbe reduzieren:</b> Planung auf Variante A abstützen.');
     if (!acts.length) acts.push('<b>Plan bestätigt:</b> jährlich überprüfen (Marktentwicklung, Zinsen, Gesetze, Gesundheit) und Annahmen im Tab «Annahmen &amp; Daten» nachführen.');
@@ -1733,7 +1746,7 @@ const UBS_PORT = [
         <p class="muted">Alle Eingaben auf einen Blick: Vermögensentwicklung bis zur Pensionierung, Entnahmefähigkeit und maximal tragbare Hypothek – wie die «Normalvariante» im Excel. Kanton ${E.CANTONS[P.canton]}, ${married ? 'Ehepaar' : 'Einzelperson'}, Pensionierung ${O.years[O.years.length - 1].year} (Alter ${P.retireAge}).</p>
         <div class="tiles">
           <div class="tile"><span>Vermögen brutto bei Pensionierung</span><b>${chf(last.total)}</b></div>
-          <div class="tile"><span>Investierbar nach Steuern (A: PK &amp; Liquidität)</span><b>${chf(O.lines[0].K)}</b><span>mit Erbe (C): ${chf(O.lines[2].K)} · Erbe netto: ${chf(O.erbe)}</span></div>
+          <div class="tile"><span>Investierbar nach Steuern (A: PK &amp; Liquidität)</span><b>${chf(O.lines[0].K)}</b><span>mit Erbe (C): ${chf(O.lines[2].K)} · Erbe netto: ${chf(O.erbe)}${O.erbeLater.length ? ' · Erbe später: ' + O.erbeLater.map(x => chf(x.v) + ' ab Alter ' + x.age).join(', ') + ' (nicht in A–E enthalten)' : ''}</span></div>
           <div class="tile"><span>Budget p. a. (ohne Steuern)</span><b>${chf(E.budgetYearly(S.budget, true))}</b></div>
           <div class="tile"><span>Hypotheken nach Amortisation</span><b>${chf(O.hypo)}</b><span>vorher ${chf(O.hypo0)}, Amortisation ${chf(O.amo)}</span></div>
           ${best ? `<div class="tile ${best.r.tragbar ? 'ok' : 'no'}"><span>Bestes Szenario: ${esc(best.s.name)}</span><b>${best.r.tragbar ? '✔ tragbar' : '✘ nicht tragbar'} (${f0(best.r.surplus)})</b></div>` : ''}
@@ -1865,17 +1878,20 @@ const UBS_PORT = [
     const years = Math.max(1, Math.round(pv(N.years, Math.max(1, num(P.lifeAge) - num(P.retireAge)))));
     const z = (1 + num(N.ret) / 100) / (1 + num(N.infl) / 100) - 1, rest = num(N.rest);
     const W = Math.max(0, target - income);
-    const maxM = E.withdrawal(K0, z, 0, years, rest);
+    const later = (r.erbeLater || []).map(x => ({ t: Math.max(0, Math.round(x.age - num(P.retireAge))), v: x.v, age: x.age, name: x.name })).filter(x => x.t < years);
+    const pvIn = later.reduce((s, x) => s + x.v / Math.pow(1 + z, x.t), 0), K0e = K0 + pvIn;
+    const maxM = E.withdrawal(K0e, z, 0, years, rest);
     const f = 1 + z * 6.5 / 12; let B = K0; const rows = []; let depl = null;
     for (let t = 0; t < years; t++) {
+      B += later.filter(x => x.t === t).reduce((s, x) => s + x.v, 0);
       const ret = B * z, wd = Math.min(12 * W * f, Math.max(0, B + ret)), end = B * (1 + z) - 12 * W * f;
       rows.push({ t, age: num(P.retireAge) + t, start: B, ret, wd: 12 * W, end });
       if (end < 0 && depl == null) depl = t + (B > 0 ? B * (1 + z) / (12 * W * f) : 0);
       B = end; if (B < -1e9) break;
     }
     const endB = rows.length ? rows[rows.length - 1].end : K0;
-    const ok = endB >= rest - 1;
-    const needK = E.capitalNeeded(W, z, 0, years, rest), shortK = Math.max(0, needK - K0), shortM = Math.max(0, W - maxM);
+    const ok = endB >= rest - 1 && depl == null;
+    const needK = E.capitalNeeded(W, z, 0, years, rest), shortK = Math.max(0, needK - K0e), shortM = Math.max(0, W - maxM);
     const lastsAge = depl == null ? null : num(P.retireAge) + depl;
     // Ampel: grün = gedeckt, orange = knapp (Reserve < 10 % des Kapitalbedarfs), rot = nicht gedeckt
     let lvl, head, txt;
@@ -1884,12 +1900,12 @@ const UBS_PORT = [
       lvl = 'bad'; head = 'Finanzierungslücke';
       txt = K0 <= 0 && income <= 0 ? `Es sind weder Kapital noch Renten oder Einkünfte erfasst. Bitte ergänzen Sie Vermögen, Vorsorge und Einkünfte oder wählen Sie ein Szenario.`
         : `Das Zielbudget von CHF ${f0(target)} pro Monat ist mit den vorhandenen Mitteln nicht über ${years} Jahre finanzierbar. Das Kapital ist voraussichtlich mit Alter ${lastsAge == null ? '–' : lastsAge.toFixed(0)} aufgebraucht. Es fehlen rund CHF ${f0(shortM)} pro Monat bzw. ein zusätzliches Kapital von etwa CHF ${f0(shortK)}. Mögliche Hebel: tieferes Budget, höhere Einkünfte, späterer Bezug oder kürzere Entnahmedauer.`;
-    } else if (needK > 0 && K0 < needK * 1.10) {
+    } else if (needK > 0 && K0e < needK * 1.10) {
       lvl = 'mid'; head = 'Knapp gedeckt';
-      txt = `Das Zielbudget ist rechnerisch über ${years} Jahre finanzierbar, die Reserve beträgt aber nur rund CHF ${f0(K0 - needK)} (weniger als 10 % des Kapitalbedarfs). Schon geringere Renditen oder höhere Ausgaben können zu einer Lücke führen.`;
+      txt = `Das Zielbudget ist rechnerisch über ${years} Jahre finanzierbar, die Reserve beträgt aber nur rund CHF ${f0(K0e - needK)} (weniger als 10 % des Kapitalbedarfs). Schon geringere Renditen oder höhere Ausgaben können zu einer Lücke führen.`;
     } else {
       lvl = 'good'; head = 'Finanzierung gesichert';
-      txt = `Das Zielbudget von CHF ${f0(target)} pro Monat ist über ${years} Jahre finanzierbar. Das Kapital beträgt am Ende rund CHF ${f0(Math.max(endB, 0))} (in heutiger Kaufkraft); die Reserve gegenüber dem Kapitalbedarf liegt bei CHF ${f0(K0 - needK)}.`;
+      txt = `Das Zielbudget von CHF ${f0(target)} pro Monat ist über ${years} Jahre finanzierbar. Das Kapital beträgt am Ende rund CHF ${f0(Math.max(endB, 0))} (in heutiger Kaufkraft); die Reserve gegenüber dem Kapitalbedarf liegt bei CHF ${f0(K0e - needK)}.`;
     }
     const tcls = maxM + income >= target ? 'ok' : (maxM + income >= target * 0.9 ? 'amber' : 'no');
     el.innerHTML = `<div class="card"><div class="tiles">
@@ -1897,7 +1913,7 @@ const UBS_PORT = [
         <div class="tile"><span>Maximal mögliche Entnahme aus dem Kapital pro Monat</span><b>${chf(maxM)}</b><span>${years} Jahre, Restkapital ${f0(rest)}</span></div>
         <div class="tile ${tcls}"><span>Maximal mögliches Gesamteinkommen pro Monat</span><b>${chf(maxM + income)}</b><span>Entnahme + Renten/Einkünfte · Ziel ${f0(target)}</span></div>
         <div class="tile"><span>Startkapital</span><b>${chf(K0)}</b><span>Kapitalbedarf ${chf(needK)}</span></div></div>
-        <div class="verdict ${lvl}"><b>${head}.</b> ${txt}</div></div>
+        <div class="verdict ${lvl}"><b>${head}.</b> ${txt}${later.length ? ` <i>Berücksichtigt: ${later.map(x => `${esc(x.name)} ${chf(x.v)} mit Alter ${x.age}`).join(', ')} (erst ab diesem Zeitpunkt verfügbar; vorher nicht eingerechnet).</i>` : ''}</div></div>
       <div class="card"><div class="row between wrap gap"><h3 style="margin:0">Vermögensentwicklung</h3><div class="fld" style="min-width:230px">${inp('Y-Achse', 'entn', null, 'yAxis', N.yAxis || 'lin0', { type: 'select', opts: [['lin0', 'Linear, ab 0'], ['lin', 'Linear, automatischer Bereich'], ['log', 'Logarithmisch'], ['pct', 'In % des Startkapitals']] }).replace('<div class="fld ">', '<div>')}</div></div><div class="chartbox tall" style="margin-top:10px"><canvas id="c-ent"></canvas></div></div>
       <div class="card"><details class="fold" id="en-years" ${N.yearsClosed ? '' : 'open'}><summary><h3>Jahresübersicht</h3></summary><div class="tblwrap"><table class="rt"><thead><tr><th>Jahr</th><th>Alter</th><th>Kapital Jahresbeginn</th><th>Rendite</th><th>Entnahme</th><th>Kapital Jahresende</th></tr></thead><tbody>
         ${rows.map(x => `<tr><td>${x.t + 1}</td><td>${x.age}</td><td>${f0(x.start)}</td><td>${f0(x.ret)}</td><td>${f0(x.wd)}</td><td class="${x.end < 0 ? 'neg' : ''}">${f0(x.end)}</td></tr>`).join('')}</tbody></table></div>
