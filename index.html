@@ -97,6 +97,13 @@ table.proj{min-width:760px}.rt tr.sub td{color:var(--muted);font-size:13px}
 .alt{border-radius:14px;padding:10px 12px 2px;margin-bottom:22px;border:2px solid var(--ac)}
 .alt-ubs{--ac:#c0392b;background:color-mix(in srgb,#c0392b 9%,var(--bg))}
 .alt-etf{--ac:#185FA5;background:color-mix(in srgb,#185FA5 10%,var(--bg))}
+.alt-own{--ac:#0b7a63;background:color-mix(in srgb,#0b7a63 10%,var(--bg))}
+.alt-pf{--ac:#4a3aa7;background:color-mix(in srgb,#4a3aa7 9%,var(--bg))}
+.pfcmp td:first-child{min-width:200px}
+.pfcmp tr.on td{background:color-mix(in srgb,#4a3aa7 16%,transparent);font-weight:700}
+.rt th small{display:block;font-weight:400;color:var(--muted);font-size:11.5px;white-space:nowrap}
+.pcin{width:100%;min-width:70px}.pcin.isin{min-width:130px;text-transform:uppercase;font-family:ui-monospace,Menlo,Consolas,monospace}
+.pfeff{margin:8px 0 0;padding:8px 12px;border-radius:10px;background:var(--surface2);font-size:13.5px}.pfeff li{margin:2px 0}
 .alt-h{display:inline-block;background:var(--ac);color:#fff;border-radius:20px;padding:4px 14px;font-size:13.5px;margin:0 0 10px}
 header h1{color:var(--ptext,var(--text))}.sub{color:var(--pmuted,var(--muted))}footer{color:var(--pmuted,var(--muted))}
 #bgbar{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:8px;font-size:12.5px;color:var(--pmuted,var(--muted));margin-bottom:6px}
@@ -722,7 +729,19 @@ const Engine = (function () {
   };
 
   /* ---------- Mischpult: Was-wäre-wenn für Erbe / Scheidungsauszahlung (S.entn.mix) ---------- */
-  E.effS = function (S) {
+  E.effS = function (S0) {
+    let S = S0;
+    // Massgebendes Portfolio (Tab 9, S.inv.eff): überschreibt Renditeannahmen, ohne die Eingaben zu verändern
+    const pf = S0.inv && S0.inv.eff;
+    if (pf && isFinite(pf.rate) && pf.tg) {
+      const settings = Object.assign({}, S0.settings);
+      const rt = pf.rates || {};
+      if (pf.tg.verz) settings.retRate = rt.verz != null ? rt.verz : pf.rate;
+      if (pf.tg.ewig) settings.retRateEternal = rt.ewig != null ? rt.ewig : pf.rate;
+      const gd = rt.depot != null ? rt.depot : pf.rate;
+      const a2 = pf.tg.depot ? (S0.assets || []).map(a => a.type === 'wp' ? Object.assign({}, a, { growth: gd }) : a) : S0.assets;
+      S = Object.assign({}, S0, { settings, assets: a2 });
+    }
     const m = S.entn && S.entn.mix; if (!m || !S.assets) return S;
     let ch = false;
     const assets = S.assets.map(a => {
@@ -1067,7 +1086,7 @@ const UBS_PORT = [
       pension: { ahv1: 2560, ahv2: 0 },
       budget: [], assets: [], debts: [], incomes: [], scenarios: [], goals: [],
       entn: { sc: 0, target: '', income: '', start: '', ret: 4, infl: 1, years: '', rest: 0 },
-      inv: { profile: 'auto', div: false, esg: false, gold: true, ubsSel: 'D', ubsShare: 65, ubsK: '', ubsW: {} },
+      inv: { profile: 'auto', div: false, esg: false, gold: true, ubsSel: 'D', ubsShare: 65, ubsK: '', ubsW: {}, act: 'none', tgEntn: true, tgVerz: true, tgEwig: true, tgDepot: true, vol: true, tc: 0.3, hcEntn: 0, hcVerz: 0.5, hcEwig: 1, bk: 0, flex: false, pa: {}, c: { rows: [] }, cK: '' },
       layout: {}
     };
     DEFAULT_BUDGET.forEach(b => s.budget.push({ id: s.nextId++, name: b[0], cat: b[1], period: b[2], amount: 0, tax: !!b[3] }));
@@ -1134,7 +1153,7 @@ const UBS_PORT = [
     } else if (t === 'check') {
       return `<label class="chk ${o.cls || ''}"><input type="checkbox" ${attr} ${val ? 'checked' : ''}> <span>${esc(label)}</span></label>`;
     } else {
-      ctl = `<input type="${t}" ${t === 'number' ? `step="${o.step || 'any'}" inputmode="decimal"` : ''} value="${esc(val)}" ${o.ph ? `placeholder="${esc(o.ph)}"` : ''} ${o.max ? `maxlength="${o.max}"` : ''} ${attr}>`;
+      ctl = `<input type="${t}" ${t === 'number' ? `step="${o.step || 'any'}" inputmode="decimal"` : ''} value="${esc(val)}" ${o.ph ? `placeholder="${esc(o.ph)}"` : ''} ${o.max ? `maxlength="${o.max}"` : ''} ${o.dis ? 'disabled' : ''} ${attr}>`;
     }
     return `<div class="fld ${o.cls || ''}"><label>${esc(label)}</label><div class="ctl">${ctl}${o.suf ? `<span class="suf">${esc(o.suf)}</span>` : ''}</div>${o.hint ? `<small>${o.hint}</small>` : ''}</div>`;
   }
@@ -1150,6 +1169,7 @@ const UBS_PORT = [
   let BE = null;
   const charts = {};
   function showTab(t) {
+    pfSync();
     curTab = t; document.body.classList.toggle('tab-report', t === 'report');
     $$('.tab').forEach(b => b.classList.toggle('on', b.dataset.t === t));
     $$('.page').forEach(p => p.classList.toggle('on', p.id === 'p-' + t));
@@ -1166,7 +1186,7 @@ const UBS_PORT = [
     const dark = cardDark != null ? cardDark : matchMedia('(prefers-color-scheme: dark)').matches;
     Chart.defaults.color = dark ? '#b9b7ae' : '#55534d';
     Chart.defaults.borderColor = dark ? '#3a3a37' : '#e2e0d8';
-    if (!['doughnut', 'pie', 'polarArea', 'radar'].includes(cfg.type) && id !== 'c-ent') applyYCfg(id, cfg, el);
+    if (!['doughnut', 'pie', 'polarArea', 'radar'].includes(cfg.type) && id !== 'c-ent' && id !== 'c-enc') applyYCfg(id, cfg, el);
     charts[id] = new Chart(el, cfg);
   }
   // Wahlschalter je Diagramm: Y-Achse linear/logarithmisch und Beginn bei 0 / beim tiefsten Wert
@@ -1316,7 +1336,7 @@ const UBS_PORT = [
   function assetList() {
     $('#a-list').innerHTML = S.assets.map(a => {
       const T = E.ASSET_TYPES[a.type]; let body = '';
-      const I = (l, k, o) => inp(l, 'assets', a.id, k, a[k], o);
+      const I = (l, k, o) => inp(l, 'assets', a.id, k, o && o.dis ? pfRate('depot') : a[k], o);
       if (a.type === 'pk') body = I('Altersguthaben bei Pensionierung', 'value', { suf: 'CHF' }) + I('Altersrente p. a. bei Pensionierung', 'rente', { suf: 'CHF', hint: `Umwandlungssatz: <b>${num(a.value) > 0 ? (num(a.rente) / num(a.value) * 100).toFixed(2) : '–'} %</b>` });
       else if (E.isInh(a.type)) body = I(a.type === 'scheid' ? 'Erwartete Auszahlung (netto, nach Vermögensteilung)' : 'Erwarteter Betrag (brutto)', 'value', { suf: 'CHF' }) + I(a.type === 'scheid' ? 'Anteil' : 'Anteil (z. B. Teil-Erbschaft)', 'share', { suf: '%', hint: '100 % = ganzer Betrag' }) + I(a.type === 'scheid' ? 'Abzug / Steuer' : 'Erbschaftssteuer', 'taxPct', { suf: '%', hint: a.type === 'scheid' ? 'Güterrechtliche Auszahlungen sind i. d. R. steuerfrei (0 %). Bitte prüfen.' : 'Direkte Nachkommen: i. d. R. 0 %. Je nach Kanton unterschiedlich.' }) + I('Zufluss im Alter', 'arrive', { suf: 'Jahre', hint: 'Alter, in dem das Geld fliesst (leer = bei Pensionierung). Bis zur Pensionierung → Startkapital; danach → späterer Zufluss in den Berechnungen.' }) + inp('Als Kapital im Ruhestand verfügbar', 'assets', a.id, 'avail', a.avail !== false, { type: 'check' }) + `<div class="fld"><label>Netto-Zufluss</label><b>${chf(E.erbeValue(a))}</b></div>`;
       else if (a.type === 'immo') body = I('Nutzung', 'use', { type: 'select', opts: [['own', 'Selbstbewohnt (Eigenmietwert)'], ['rent', 'Vermietet']] }) + I('Verkehrswert (Marktwert)', 'value', { suf: 'CHF' }) +
@@ -1325,7 +1345,7 @@ const UBS_PORT = [
         I('Wertentwicklung p. a.', 'growth', { suf: '%' }) +
         I('Unterhaltssatz dieser Liegenschaft', 'upkeepRate', { suf: '% v. Verkehrswert', hint: 'Leer = allgemeiner Satz (Annahmen). Wirkt nur bei Unterhalt-Basis «Verkehrswert».' }) +
         inp('Bleibt in Variante E im Besitz (wird dort nicht verkauft)', 'assets', a.id, 'keepE', !!a.keepE, { type: 'check' });
-      else body = I('Wert heute', 'value', { suf: 'CHF' }) + I('Wertentwicklung p. a. bis Pensionierung', 'growth', { suf: '%' }) +
+      else body = I('Wert heute', 'value', { suf: 'CHF' }) + I('Wertentwicklung p. a. bis Pensionierung', 'growth', a.type === 'wp' && pfOn('depot') ? { suf: '%', dis: true, hint: 'Aus Portfolio ' + pfName(S.inv.eff.act) + ' (Tab 9)' } : { suf: '%' }) +
         (T.liquid ? inp('Für Entnahme im Ruhestand verfügbar', 'assets', a.id, 'avail', a.avail !== false, { type: 'check' }) : (['fz', 'geschaeft', 'uebrig'].includes(a.type) ? inp('Als Kapital im Ruhestand verfügbar (z. B. Verkauf)', 'assets', a.id, 'avail', a.avail === true, { type: 'check' }) : '')) +
         (a.type === 's3a' ? inp('Verpfändet (Hypothek): dient nur der Amortisation, sonst nicht investierbar', 'assets', a.id, 'pledged', !!a.pledged, { type: 'check' }) : '');
       return `<div class="item"><div class="ihead"><span class="tag">${esc(T.label)}</span>
@@ -1337,7 +1357,7 @@ const UBS_PORT = [
     const yrs = Math.max(0, num(S.profile.retireAge) - num(S.profile.age));
     const by = {}; let tot = 0; const laterL = [];
     S.assets.forEach(a => {
-      const g = a.type === 'pk' ? 1 : Math.pow(1 + num(a.growth) / 100, yrs);
+      const g = a.type === 'pk' ? 1 : Math.pow(1 + (a.type === 'wp' && pfOn('depot') ? pfRate('depot') : num(a.growth)) / 100, yrs);
       const later = E.isInh(a.type) && E.erbeAge(a, S.profile) > num(S.profile.retireAge);
       const v = E.isInh(a.type) ? E.erbeValue(a) : num(a.value) * g; if (later) { laterL.push(a); return; } by[a.type] = (by[a.type] || 0) + v; tot += v;
     });
@@ -1391,7 +1411,7 @@ const UBS_PORT = [
     box.innerHTML = `<div class="card"><h3>Ergebnis</h3>
       <div class="tblwrap"><table class="rt"><thead><tr><th class="l">Kombination</th><th>Kapital nach Steuern</th><th>Monatliche Entnahme (inkl. AHV)</th><th>Max. Hypothek</th><th>Hypothek bleibt</th><th>Tragbar?</th></tr></thead><tbody>
       ${res.map((r, i) => `<tr><td class="l"><span class="dot" style="background:${KO_COL[i % KO_COL.length]}"></span><b>${esc(r.name)}</b></td><td>${f0(r.K)}</td><td>${f0(r.mEw)}</td><td class="${cls(r.diffEw)}">${f0(r.maxEw)}</td><td>${f0(r.hypo)}</td><td>${r.tragbarEw ? '✔ ja' : '✘ nein'}</td></tr>`).join('')}</tbody></table></div>
-      <p class="muted small">Entnahme bei Kapitalerhalt (${num(S.settings.retRateEternal)} % Rendite). «Tragbar» heisst: die maximale Hypothek reicht für die Hypothek, die bleibt.</p></div>
+      <p class="muted small">Entnahme bei Kapitalerhalt (${num(Geff().retRateEternal)} % Rendite). «Tragbar» heisst: die maximale Hypothek reicht für die Hypothek, die bleibt.</p></div>
       <div class="card"><h3>Woraus besteht das Kapital?</h3><div class="chartbox" style="height:${Math.max(280, 46 * res.length + 110)}px"><canvas id="c-ko-comp"></canvas></div></div>`;
     const fmtM = v => (v / 1e6).toFixed(2) + ' Mio', lumHex = c => { const n = parseInt(String(c).slice(1), 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; };
     const CP = [['liq', 'Liquidität (nach Schulden)', '#185FA5'], ['pk', 'Pensionskasse (nach Steuern)', '#8b4fb8'], ['a3', 'Säule 3a (nach Steuern)', '#2e9e6b'], ['immo', 'Liegenschaften (netto)', '#d9822b'], ['erbe', 'Erbe / Auszahlungen', '#c8453b']];
@@ -1532,7 +1552,7 @@ const UBS_PORT = [
     row('Kalkulatorische Kosten total', r => r.costTotal, { cls: 'tot' });
     row(`Notwendiges Einkommen (Kosten ÷ ${(num(S.settings.burdenQuote) / 100).toFixed(2).replace(/0+$/, '')})`, r => r.needIncome, { cls: 'tot' });
     row('PK-Rente', r => r.pkRent);
-    row('«Rente als Cash» (Kapitalverzehr)', r => r.cashYear, { hint: `${num(S.settings.retRate)} % Rendite, ${num(S.settings.dynamic)} % Dynamik, bis Alter ${P.lifeAge}` });
+    row('«Rente als Cash» (Kapitalverzehr)', r => r.cashYear, { hint: `${num(Geff().retRate)} % Rendite, ${num(S.settings.dynamic)} % Dynamik, bis Alter ${P.lifeAge}` });
     row('AHV', r => r.ahv);
     row('Weitere Einkünfte / Mieteinnahmen', r => r.otherInc + r.rentIncome);
     row('Theoretisches Einkommen total', r => r.grossIncome, { cls: 'tot' });
@@ -1559,7 +1579,7 @@ const UBS_PORT = [
     row(`Kapitalbedarf bis Alter ${P.lifeAge}`, r => r.capNeeded);
     row('Kapitalreserve / -lücke', r => r.L0 - r.capNeeded, { signed: true, cls: 'tot' });
     sec('4 · Ewige Rente (Kapitalerhalt)');
-    row(`Jahresentnahme bei Kapitalerhalt (${num(S.settings.retRateEternal)} % Rendite)`, r => r.eternalM);
+    row(`Jahresentnahme bei Kapitalerhalt (${num(Geff().retRateEternal)} % Rendite)`, r => r.eternalM);
     $('#sc-res').innerHTML = `<table class="rt"><thead><tr><th></th>${R.map((x, i) => `<th style="border-bottom-color:${SC_COLORS[i % 6]}">${esc(x.s.name)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>
       <p class="muted small">Alle Beträge in CHF pro Jahr, sofern nicht anders angegeben. Steuern: Näherung auf Basis der ESTV-Tarife ${S.settings.year ? '' : ''}(Hauptort ${E.HAUPTORT[P.canton]}, Faktor ${num(S.settings.taxFactor)} %).</p>`;
     // Warnungen
@@ -1621,7 +1641,7 @@ const UBS_PORT = [
   }
   function txCmp() {
     const el = $('#tx-cmp'); if (!el) return;
-    const P = S.profile, G = S.settings, c = P.canton, o = taxOpts(), cv = civ();
+    const P = S.profile, G = Geff(), c = P.canton, o = taxOpts(), cv = civ();
     const K = num($('#tx-pk').value), R = num($('#tx-rent').value); TX.pk = K; TX.rente = R;
     const N = Math.max(1, num(P.lifeAge) - num(P.retireAge));
     const yrs = Math.max(0, num(P.retireAge) - num(P.age));
@@ -1771,7 +1791,7 @@ const UBS_PORT = [
     if (!R.length) { el.innerHTML = '<div class="card"><h2>Management Report</h2><p class="muted">Bitte zuerst im Tab «Szenarien &amp; Tragbarkeit» ein Szenario anlegen.</p></div>'; return; }
     const rsel = entScenario(), keepBe = S.beSc; S.beSc = rsel.s.id; rBeurt(); S.beSc = keepBe; const B = BE; if (!B) return;
     const SN = rpSnap();
-    const P = S.profile, G = S.settings, r = B.r, s = B.s, O = B.O, nm = B.names, now = new Date();
+    const P = S.profile, G = Geff(), r = B.r, s = B.s, O = B.O, nm = B.names, now = new Date();
     const dt = now.toLocaleDateString('de-CH', { day: '2-digit', month: 'long', year: 'numeric' });
     const civT = { single: 'alleinstehend', married: 'verheiratet', divorcing: 'in Scheidung (wie alleinstehend gerechnet)', partnership: 'in eingetragener Partnerschaft', concubinage: 'im Konkubinat' }[P.civil] || 'alleinstehend';
     const who = (P.name || '').trim() ? esc(P.name.trim()) : 'Der Haushalt';
@@ -1833,7 +1853,7 @@ const UBS_PORT = [
       <ul class="rp-fazit">${fazit.map(t => `<li>${t}</li>`).join('')}</ul>
       <p><b>Nächste Schritte:</b></p><ul>${B.acts.map(t => `<li>${t}</li>`).join('')}</ul>
 
-      <div class="rp-foot">Grundlagen: Steuerjahr 2026, Rendite ${num(S.entn.ret) || '–'} %, Teuerung ${num(S.entn.infl) || '–'} %, kalkulatorischer Hypothekarzins ${num(G.calcRate)} %. Schätzungen ohne Gewähr; keine Steuer-, Vorsorge- oder Anlageberatung. © Rainer von Arx, Waltenschwil. Alle Rechte vorbehalten.</div>
+      <div class="rp-foot">Grundlagen: Steuerjahr 2026, Rendite ${num(entEff().ret) || '–'} %${pfLabel()}, Teuerung ${num(S.entn.infl) || '–'} %, kalkulatorischer Hypothekarzins ${num(G.calcRate)} %. Schätzungen ohne Gewähr; keine Steuer-, Vorsorge- oder Anlageberatung. © Rainer von Arx, Waltenschwil. Alle Rechte vorbehalten.</div>
     </div>`;
     const light = { color: '#333' };
     const mk = (id, cfg) => { const c = document.getElementById(id); if (!c) return; if (charts[id]) charts[id].destroy(); cfg.options = Object.assign({ maintainAspectRatio: false, animation: false }, cfg.options || {}); charts[id] = new Chart(c, cfg); };
@@ -1843,10 +1863,10 @@ const UBS_PORT = [
     mk('c-rp-v', { type: 'doughnut', data: { labels: parts.map(x => x.l + ' · CHF ' + f0(x.v) + ' (' + Math.round(100 * x.v / parts.reduce((s, y) => s + y.v, 0)) + ' %)'), datasets: [{ data: parts.map(x => Math.round(x.v)), backgroundColor: parts.map(x => x.c) }] }, options: { plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, boxWidth: 10, padding: 6 } }, tooltip: { enabled: false } } } });
   }
   function rBeurt() {
-    const P = S.profile, G = S.settings, R = scResults(), el = $('#p-beurteilung');
+    const P = S.profile, G = Geff(), R = scResults(), el = $('#p-beurteilung');
     if (!R.length) { el.innerHTML = '<div class="card"><h2>Beurteilung</h2><p class="muted">Bitte zuerst im Tab «Szenarien &amp; Tragbarkeit» ein Szenario anlegen.</p></div>'; return; }
     const sel = (S.beSc != null && R.find(x => x.s.id === S.beSc)) || entScenario(), r = sel.r, s = sel.s, O = E.overview(S, s);
-    const EN = S.entn, pv = (v, d) => (v === '' || v == null ? d : num(v));
+    const EN = entEff(), pv = (v, d) => (v === '' || v == null ? d : num(v));
     const yrs = Math.max(0, num(P.retireAge) - num(P.age));
     const N = Math.max(1, Math.round(pv(EN.years, Math.max(1, num(P.lifeAge) - num(P.retireAge)))));
     const zN = (1 + num(EN.ret) / 100) / (1 + num(EN.infl) / 100) - 1, dyn = 0, restK = num(EN.rest);
@@ -2051,7 +2071,7 @@ const UBS_PORT = [
     const sR = gapM <= 0 ? 4 : lo >= gapM ? (lo / gapM >= 2 ? 4 : lo / gapM >= 1.3 ? 3 : 2) : base >= gapM ? 1 : 0, sLvl = RK[sR];
     out.push(sec(6, 'Anlage, Rendite &amp; Sensitivität', sLvl,
       [[`Entnahme bei ${(zN * 100 - 1).toFixed(1)} %`, chf(lo) + ' / Mt.', lo >= gapM ? 'ok' : 'no'], [`bei ${(zN * 100).toFixed(1)} % (Annahme)`, chf(base) + ' / Mt.', base >= gapM ? 'ok' : 'no'], [`bei ${(zN * 100 + 1).toFixed(1)} %`, chf(hi) + ' / Mt.', hi >= gapM ? 'ok' : 'no'], ['Bedarf', chf(gapM) + ' / Mt.']],
-      [`Eine um 1 Prozentpunkt höhere (reale) Rendite erhöht die tragbare Entnahme um ${chf(hi - base)}/Mt.`, 'Breit gestreute, kostengünstige Portfolios (UBS-Portfolios oder ETF-Baukasten, Tab «Anlage-Empfehlung») nutzen langfristige Renditeprämien.', lo >= gapM ? 'Selbst mit 1 Prozentpunkt weniger Rendite bleibt die Lücke gedeckt.' : null].filter(Boolean),
+      [`Eine um 1 Prozentpunkt höhere (reale) Rendite erhöht die tragbare Entnahme um ${chf(hi - base)}/Mt.`, 'Breit gestreute, kostengünstige Portfolios (UBS-Portfolios oder ETF-Baukasten, Tab «Anlage-Empfehlung») nutzen langfristige Renditeprämien.', lo >= gapM ? 'Selbst mit 1 Prozentpunkt weniger Rendite bleibt die Lücke gedeckt.' : null, pfNote()].filter(Boolean),
       [`Eine um 1 Prozentpunkt tiefere Rendite senkt die tragbare Entnahme um ${chf(base - lo)}/Mt.${lo < gapM ? ' Die Lücke wäre dann nicht mehr gedeckt.' : ''}`, 'Höhere Renditeannahmen bedeuten höheres Schwankungsrisiko; Rückschläge von 20–30 % sind bei Aktienanteilen möglich.', 'Inflation und Währungsschwankungen (CHF) sind nicht vorhersagbar.', 'Kosten und Steuern schmälern die Nettorendite.'],
       ['Aktienquote nach Risikotragfähigkeit statt nach Renditewunsch wählen.', 'Jährlich rebalancieren und Entnahmen aus dem übergewichteten Anlagebereich tätigen.', 'Bucket-Strategie: Cash für 2–3 Jahre, Obligationen mittelfristig, Aktien langfristig.']));
 
@@ -2077,7 +2097,7 @@ const UBS_PORT = [
     return `Es werden alle Kombinationen gezeigt: jede Liegenschaft verkauft oder behalten${O.has.erbe ? ', jeweils mit und ohne Erbe' : ''}. Beim Verkauf einer Liegenschaft wird die zugehörige Hypothek aus dem Erlös getilgt (Hypotheken ohne Zuordnung im Tab «Kredite» werden bei jedem Verkauf vollständig getilgt, ordnen Sie sie daher einer Liegenschaft zu); Säule 3a wird frei, sobald mindestens eine Liegenschaft verkauft ist; ohne Verkauf wird gemäss Szenario amortisiert. ${m.length ? 'Hinweis: ' + m.join('; ') + '. ' : ''}${O.lines.length} Kombinationen.`;
   }
   function rUeb() {
-    const P = S.profile, G = S.settings, R = scResults();
+    const P = S.profile, G = Geff(), R = scResults();
     const bestR = R.length ? R.reduce((x, y) => (y.r.surplus > x.r.surplus ? y : x)) : null;
     const manual = S.scenarios.find(x => x.id === S.ueSc);
     const scSel = manual || (bestR ? bestR.s : null);
@@ -2242,7 +2262,7 @@ const UBS_PORT = [
           ${inp('Renten/AHV/Einkünfte pro Monat', 'entn', null, 'income', N.income, { suf: 'CHF', ph: sel ? f0(sel.r.fixedIn / 12) : '', hint: 'leer = AHV + PK-Rente + weitere Einkünfte' })}
           ${inp('Startkapital aus Szenario', 'entn', null, 'startSc', N.startSc || 0, { type: 'select', opts: [[0, 'wie Basis-Szenario oben'], ...scResults().map(x => [x.s.id, x.s.name + ' · ' + f0(x.r.L0)])], hint: 'Wählt, aus welchem Szenario das Startkapital stammt (inkl. dessen Auswahl der Vermögenswerte).' })}
           ${inp('Startkapital', 'entn', null, 'start', N.start, { suf: 'CHF', ph: sel ? f0(entK0({ startSc: N.startSc }, sel.r)) : '', hint: sel ? 'leer = Kapital des gewählten Szenarios; eigener Betrag überschreibt' : 'leer = verfügbares Kapital des Szenarios' })}
-          ${inp('Rendite p. a. nach Kosten', 'entn', null, 'ret', N.ret, { suf: '%' })}
+          ${inp('Rendite p. a. nach Kosten', 'entn', null, 'ret', pfOn('entn') ? pfRate('entn') : N.ret, pfOn('entn') ? { suf: '%', dis: true, hint: 'Aus Portfolio ' + pfName(S.inv.eff.act) + ' (Tab 9, abzüglich Sicherheitsabschlag)' } : { suf: '%' })}
           ${inp('Inflation p. a.', 'entn', null, 'infl', N.infl, { suf: '%' })}
           ${inp('Entnahmedauer', 'entn', null, 'years', N.years, { suf: 'Jahre', ph: String(Math.max(1, num(P.lifeAge) - num(P.retireAge))), hint: 'leer = bis Planungshorizont' })}
           ${inp('Gewünschtes Restkapital am Ende', 'entn', null, 'rest', N.rest, { suf: 'CHF' })}
@@ -2301,7 +2321,7 @@ const UBS_PORT = [
   }
   function entOut() {
     const el = $('#en-out'); if (!el) return;
-    const N = S.entn, P = S.profile, sel = entScenario(); if (!sel) { el.innerHTML = '<div class="card muted">Bitte zuerst ein Szenario anlegen.</div>'; return; }
+    const N = entEff(), P = S.profile, sel = entScenario(); if (!sel) { el.innerHTML = '<div class="card muted">Bitte zuerst ein Szenario anlegen.</div>'; return; }
     const r = sel.r, pv = (v, d) => (v === '' || v == null ? d : num(v));
     const target = pv(N.target, r.need / 12), income = pv(N.income, r.fixedIn / 12), K0 = entK0(N, r);
     const years = Math.max(1, Math.round(pv(N.years, Math.max(1, num(P.lifeAge) - num(P.retireAge)))));
@@ -2344,6 +2364,7 @@ const UBS_PORT = [
         <div class="tile"><span>Startkapital</span><b>${chf(K0)}</b><span>Kapitalbedarf ${chf(needK)}</span></div></div>
         <div class="verdict ${lvl}"><b>${head}.</b> ${txt}${later.length ? ` <i>Berücksichtigt: ${later.map(x => `${esc(x.name)} ${chf(x.v)} mit Alter ${x.age}`).join(', ')} (erst ab diesem Zeitpunkt verfügbar; vorher nicht eingerechnet).</i>` : ''}</div></div>
       <div class="card"><div class="row between wrap gap"><h3 style="margin:0">Vermögensentwicklung</h3><div class="fld" style="min-width:230px">${inp('Y-Achse', 'entn', null, 'yAxis', N.yAxis || 'lin0', { type: 'select', opts: [['lin0', 'Linear, ab 0'], ['lin', 'Linear, automatischer Bereich'], ['log', 'Logarithmisch'], ['pct', 'In % des Startkapitals']] }).replace('<div class="fld ">', '<div>')}</div></div><div class="chartbox tall" style="margin-top:10px"><canvas id="c-ent"></canvas></div></div>
+      <div id="en-cmp"></div>
       <div class="card"><details class="fold" id="en-years" ${N.yearsClosed ? '' : 'open'}><summary><h3>Jahresübersicht</h3></summary><div class="tblwrap"><table class="rt"><thead><tr><th>Jahr</th><th>Alter</th><th>Kapital Jahresbeginn</th><th>Rendite</th><th>Entnahme</th><th>Kapital Jahresende</th></tr></thead><tbody>
         ${rows.map(x => `<tr><td>${x.t + 1}</td><td>${x.age}</td><td>${f0(x.start)}</td><td>${f0(x.ret)}</td><td>${f0(x.wd)}</td><td class="${x.end < 0 ? 'neg' : ''}">${f0(x.end)}</td></tr>`).join('')}</tbody></table></div>
         <p class="muted small">Kaufkraft von heute; reale Rendite ${(z * 100).toFixed(2)} % p. a. Entnahme monatlich im Voraus. Steuern sind im Zielbudget enthalten (Szenario-Berechnung).</p></details></div>`;
@@ -2383,15 +2404,503 @@ const UBS_PORT = [
       type: 'line', data: { labels: ['', ...rows.map(x => x.age + 1)].map((v, i) => i === 0 ? num(P.retireAge) : v), datasets: [{ label: 'Kapital (heutige Kaufkraft)', data: series, borderColor: '#185FA5', backgroundColor: 'rgba(24,95,165,.15)', fill: yMode !== 'log', pointRadius: 0, tension: .15, spanGaps: false }] },
       plugins: [ptLabels], options: { maintainAspectRatio: false, layout: { padding: { top: 26, right: 14 } }, scales: { y: yScale, x: { title: { display: true, text: 'Alter' } } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => yMode === 'pct' ? `${c.raw} % (${chf(c.raw * K0 / 100)})` : chf(c.raw) } } } }
     });
+    enCompare();
   }
 
   /* ================= ANLAGE-EMPFEHLUNG ================= */
   const PROFILES = { conservative: ['Konservativ', { equity: 30, bond: 50, gold: 10, reit: 5, mixed: 5 }], balanced: ['Ausgewogen', { equity: 55, bond: 25, gold: 5, reit: 10, mixed: 5 }], growth: ['Wachstum', { equity: 75, bond: 10, gold: 5, reit: 5, mixed: 5 }] };
   const TYPE_LABEL = { equity: 'Aktien', bond: 'Anleihen', gold: 'Gold/Rohstoffe', reit: 'Immobilien (REITs)', mixed: 'Mischfonds' };
+  /* ---------- Massgebendes Portfolio (A / B / C): wirkt auf alle Rendite-Annahmen ---------- */
+  const PF_CLS = { equity: 'Aktien', bond: 'Obligationen', cash: 'Cash / Geldmarkt', reit: 'Immobilien (REITs / Fonds)', gold: 'Gold / Rohstoffe', mixed: 'Mischfonds / Strategie' };
+  // Standardannahmen: [erwartete Brutto-Rendite % p. a. (nominal, arithmetisch), Kosten (TER) % p. a., Schwankung (Volatilität) % p. a.]; je Klasse änderbar
+  const PF_DEF = { equity: [5.5, 0.20, 16], bond: [1.5, 0.15, 4.5], cash: [0.8, 0, 0.5], reit: [4.0, 0.30, 12], gold: [2.0, 0.25, 15], mixed: [3.5, 0.40, 9] };
+  // Korrelationen zwischen den Anlageklassen (innerhalb einer Klasse = 1); Näherung für die Portfolio-Schwankung
+  const PF_COR = { 'equity|bond': 0.1, 'equity|reit': 0.7, 'equity|gold': 0.1, 'equity|mixed': 0.9, 'bond|cash': 0.1, 'bond|reit': 0.3, 'bond|gold': 0.2, 'bond|mixed': 0.5, 'reit|gold': 0.1, 'reit|mixed': 0.7, 'gold|mixed': 0.2 };
+  const pfCorr = (a, b) => (a === b ? 1 : (PF_COR[a + '|' + b] != null ? PF_COR[a + '|' + b] : (PF_COR[b + '|' + a] != null ? PF_COR[b + '|' + a] : 0)));
+  const PF_AB = { A: 'A · UBS-Portfolio', B: 'B · ETF-Baukasten', C: 'C · Eigenes Portfolio' };
+  function pfEnsure() {
+    const I = S.inv; if (!I) return;
+    if (I.act == null) I.act = 'none';
+    ['tgEntn', 'tgVerz', 'tgEwig', 'tgDepot'].forEach(k => { if (I[k] == null) I[k] = true; });
+    if (I.vol == null) I.vol = true;                       // Volatilitätsabzug (geometrische statt arithmetische Rendite)
+    if (I.tc == null) I.tc = 0.3;                          // Steuern und Bankkosten p. a. (Prozentpunkte)
+    if (I.hcEntn == null) I.hcEntn = 0;                    // Sicherheitsabschläge je Verwendung (Prozentpunkte)
+    if (I.hcVerz == null) I.hcVerz = 0.5;
+    if (I.hcEwig == null) I.hcEwig = 1;
+    if (I.bk == null) I.bk = 0;                            // Cash-Reserve in Jahren Entnahmen (Gegenmassnahme im Vergleich)
+    if (I.flex == null) I.flex = false;                    // Budget -10 % in Verlustjahren
+    if (!I.pa) I.pa = {};
+    if (!I.c || !Array.isArray(I.c.rows)) I.c = { rows: [] };
+    if (I.cK == null) I.cK = '';
+  }
+  function pfAs(cls) {
+    const o = (S.inv.pa || {})[cls] || {}, d = PF_DEF[cls] || PF_DEF.mixed, ok = v => v !== '' && v != null && isFinite(parseFloat(v));
+    return { gross: ok(o.gross) ? parseFloat(o.gross) : d[0], ter: ok(o.ter) ? parseFloat(o.ter) : d[1], sig: ok(o.sig) ? parseFloat(o.sig) : d[2] };
+  }
+  function ubsCls(c) { c = String(c || ''); return /^Cash/i.test(c) ? 'cash' : /^Obligation/i.test(c) ? 'bond' : /^Aktien/i.test(c) ? 'equity' : /Gold|Rohstoff/i.test(c) ? 'gold' : /Immobil/i.test(c) ? 'reit' : 'mixed'; }
+  function ubsList() {
+    const I = S.inv, sel = I.ubsSel || 'D';
+    if (sel === 'K') {
+      const sh = num(I.ubsShare) / 100, m = new Map();
+      ['D', 'C'].forEach(p => ubsRows(p).forEach(r => { const k = r.tick + '|' + r.prod, w = ubsW(p, r) * (p === 'D' ? sh : 1 - sh); if (m.has(k)) m.get(k).w += w; else m.set(k, { ...r, w }); }));
+      return [...m.values()];
+    }
+    return ubsRows(sel).map(r => ({ ...r, w: ubsW(sel, r) }));
+  }
+  const optNum = v => (v === '' || v == null || !isFinite(parseFloat(v)) ? undefined : parseFloat(v));
+  function pfRows(p) {
+    if (p === 'A') return ubsList().map(r => ({ name: r.prod, isin: r.tick, cls: ubsCls(r.cls), w: r.w }));
+    if (p === 'B') { const s = etfSel(); return s.etfs.map((e, i) => ({ name: e.name, isin: e.isin, cls: e.type, w: s.wp[i], ter: e.ter })); }
+    if (p === 'C') return S.inv.c.rows.map(r => ({ name: r.name || r.isin, isin: r.isin, cls: r.cls, w: num(r.w), gross: optNum(r.ret), ter: optNum(r.ter) }));
+    return [];
+  }
+  function pfSigma(wc) {
+    const ks = Object.keys(wc); let v = 0;
+    ks.forEach(a => ks.forEach(b => { v += wc[a] * wc[b] * pfAs(a).sig * pfAs(b).sig * pfCorr(a, b); }));
+    return Math.sqrt(Math.max(0, v));
+  }
+  function pfStats(p) {
+    const I = S.inv, rows = pfRows(p).filter(r => r.w > 0), tot = rows.reduce((s, r) => s + r.w, 0);
+    if (!tot) return null;
+    let gross = 0, ter = 0; const wc = {};
+    rows.forEach(r => { const a = pfAs(r.cls), g = r.gross != null ? r.gross : a.gross, t = r.ter != null ? r.ter : a.ter, x = r.w / tot; gross += x * g; ter += x * t; wc[r.cls] = (wc[r.cls] || 0) + x; });
+    const tc = Math.max(0, num(I.tc)), sigma = pfSigma(wc), drag = I.vol ? sigma * sigma / 200 : 0;   // Volatilitätsabzug ≈ σ²/2 (σ in %, Abzug in %-Punkten)
+    const mu = gross - ter - tc, g = mu - drag;
+    return { n: rows.length, wsum: tot, gross, ter, tc, sigma, drag, mu, g, net: g, eq: (wc.equity || 0) * 100, wc };
+  }
+  function pfSync() {
+    if (!S || !S.inv) return; pfEnsure();
+    const I = S.inv; I.eff = null;
+    if (I.act === 'A' || I.act === 'B' || I.act === 'C') {
+      const st = pfStats(I.act);
+      if (st) { const r2 = v => Math.round(v * 100) / 100; I.eff = { act: I.act, rate: r2(st.g), rates: { entn: r2(st.g - num(I.hcEntn)), verz: r2(st.g - num(I.hcVerz)), ewig: r2(st.g - num(I.hcEwig)), depot: r2(st.g) }, tg: { entn: !!I.tgEntn, verz: !!I.tgVerz, ewig: !!I.tgEwig, depot: !!I.tgDepot } }; }
+    }
+  }
+  // Anlagebetrag-Vorgabe = Startkapital des Entnahmeplans (inkl. Wahl «Startkapital aus Szenario» bzw. eigener Betrag)
+  function anlK() { const sc = entScenario(); return sc ? entK0(S.entn, sc.r) : 0; }
+  const pfOn = t => !!(S.inv && S.inv.eff && S.inv.eff.tg[t]);
+  const pfRate = t => { const e = S.inv && S.inv.eff; return e ? (t && e.rates && e.rates[t] != null ? e.rates[t] : e.rate) : null; };
+  function pfName(a) {
+    if (a === 'A') return 'A · UBS ' + (UBS_NAMES[S.inv.ubsSel || 'D'] || '');
+    if (a === 'B') { const pk = S.inv.profile === 'auto' || !PROFILES[S.inv.profile] ? N_sugg() : S.inv.profile; return 'B · ETF-Baukasten ' + PROFILES[pk][0]; }
+    return PF_AB[a] || '';
+  }
+  function pfLabel() { const e = S.inv && S.inv.eff; return e ? ` (Portfolio ${pfName(e.act)})` : ''; }
+  function pfNote() {
+    const e = S.inv && S.inv.eff; if (!e) return null; const st = pfStats(e.act); if (!st) return null;
+    const c = v => v.toFixed(2).replace('.', ',');
+    return `Gewähltes Portfolio ${pfName(e.act)}: Netto-Rendite ${c(e.rate)} % p. a. (brutto ${c(st.gross)} %, abzüglich Produktkosten ${c(st.ter)} %, Steuern/Bank ${c(st.tc)} %${st.drag ? ' und Volatilitätsabzug ' + c(st.drag) + ' %' : ''}; Aktienquote ${Math.round(st.eq)} %, erwartete Schwankung ${c(st.sigma)} %) fliesst in die Berechnungen ein.`;
+  }
+  const Geff = () => E.effS(S).settings;
+  const entEff = () => (pfOn('entn') ? Object.assign({}, S.entn, { ret: pfRate('entn') }) : S.entn);
+  function pfRefresh() { pfSync(); pfSumRender(); }
+
+  /* ISIN-Hilfen */
+  function isinOk(s) {
+    if (!/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(s)) return false;
+    const d = s.replace(/[A-Z]/g, c => c.charCodeAt(0) - 55); let sum = 0, alt = false;
+    for (let i = d.length - 1; i >= 0; i--) { let n = +d[i]; if (alt) { n *= 2; if (n > 9) n -= 9; } sum += n; alt = !alt; }
+    return sum % 10 === 0;
+  }
+  let PF_KNOWN = null;
+  function pfKnown(isin) {
+    if (!PF_KNOWN) {
+      PF_KNOWN = {};
+      ETF_DB.forEach(e => { PF_KNOWN[e.isin] = { name: e.name, cls: e.type, ter: e.ter }; });
+      UBS_PORT.forEach(r => (String(r.tick).match(/[A-Z]{2}[A-Z0-9]{9}\d/g) || []).forEach(i => { if (!PF_KNOWN[i]) PF_KNOWN[i] = { name: r.prod, cls: ubsCls(r.cls), ter: null }; }));
+    }
+    return PF_KNOWN[isin] || null;
+  }
+
+  /* ---------- Historische Renditen (CHF, Stand 29.10.2026) und Referenzwert je ISIN ---------- */
+  // since/c5 = jährliche Durchschnittsrendite (geometrisch, nach Produktkosten, inkl. Ausschüttungen) seit Auflage bzw. 5 Jahre; T = Jahre der Historie.
+  // anchor = vorausschauender Anker statt Klassenannahme (Obligationen: Rendite auf Verfall). Quellen: iShares CH, justETF, ABN AMRO, UBS-Factsheet, FTD.
+  const PF_HIST = {
+    'CH0385767733': { since: -0.02, c5: -0.35, T: 9.6, from: '02.2017', basis: 'CHF, Fonds', anchor: 1.0, anchorTxt: 'Rendite auf Verfall 1,0 % (30.09.2026)' },
+    'IE00B3RBWM25': { since: 10.59, c5: 8.18, T: 14.4, from: '05.2012', basis: 'CHF, justETF' },
+    'IE00B8GKDB10': { since: 6.4, c5: 7.9, T: 13.0, from: '05.2013', basis: 'aus EUR umgerechnet (±0,3)' },
+    'CH0131872431': { since: 8.2, c5: 5.3, T: 9.3, from: '03.2017', basis: 'CHF, gleicher Index (iShares SPI)' },
+    'IE00BYYHSQ67': { since: 8.6, c5: 9.7, T: 9.2, from: '06.2017', basis: 'aus USD umgerechnet (±0,3)' }
+  };
+  // Referenzwert = Bayes-Schrumpfung: Mischung aus vorausschauendem Anker (Klassenannahme bzw. Rendite auf Verfall) und der in arithmetische Rendite
+  // umgerechneten Historie (geom. + σ²/2). Das Gewicht der Historie ist umso kleiner, je kürzer sie ist und je stärker der Markt schwankt
+  // (Standardfehler σ²/T gegen Unsicherheit des Ankers τ²). Bei 14 Jahren Aktienhistorie bleiben so nur rund 15 bis 20 % Gewicht für die Vergangenheit.
+  function pfRef(r) {
+    const h = PF_HIST[String(r.isin || '').trim()]; if (!h) return null;
+    const a = pfAs(r.cls), sig = Math.max(a.sig, 0.5), tau = r.cls === 'bond' ? 1 : 2, mu0 = h.anchor != null ? h.anchor : a.gross;
+    const hArith = h.since + sig * sig / 200, wH = (h.T / (sig * sig)) / (1 / (tau * tau) + h.T / (sig * sig));
+    return { h, ref: (1 - wH) * mu0 + wH * hArith, wH, mu0, hArith, sig, tau };
+  }
+  const pfFmt = v => (Math.round(v * 10) / 10).toFixed(1).replace('.', ',');
+
+  /* Auswahlkarte oben im Tab */
+  function pfCardHtml() {
+    const I = S.inv;
+    return `<div class="alt alt-pf"><div class="alt-h"><b>Auswahl</b> · Massgebendes Portfolio für alle Berechnungen</div>
+      <div class="card"><h2>Welches Portfolio soll gelten?</h2>
+        <p class="muted">Das gewählte Portfolio liefert die erwartete Netto-Rendite und ersetzt damit die manuellen Renditeannahmen in den unten gewählten Berechnungen. Netto-Rendite = Brutto-Rendite der Anlageklassen – Produktkosten – Steuern/Bankkosten – Volatilitätsabzug (Schwankungen mindern die tatsächlich verzinste Rendite) – Sicherheitsabschlag. Ihre manuell erfassten Werte bleiben unverändert gespeichert und gelten wieder, sobald Sie «Keines» wählen.</p>
+        <div class="fgrid">
+          ${inp('Massgebendes Portfolio', 'inv', null, 'act', I.act, { type: 'select', opts: [['none', 'Keines – manuelle Annahmen'], ['A', 'A · UBS-Portfolio'], ['B', 'B · ETF-Baukasten'], ['C', 'C · Eigenes Portfolio (ISIN-Erfassung)']] })}
+          ${inp('Steuern und Bankkosten p. a.', 'inv', null, 'tc', I.tc, { suf: '%-Punkte', hint: 'Depotgebühren, Courtagen, Steuer auf Ausschüttungen/Zinsen und Vermögenssteuer. Typisch 0,3 bis 0,6.' })}
+          ${inp('Volatilitätsabzug anwenden', 'inv', null, 'vol', I.vol, { type: 'check' })}
+        </div>
+        <div class="fgrid">
+          ${inp('Sicherheitsabschlag Entnahmeplan', 'inv', null, 'hcEntn', I.hcEntn, { suf: '%-Punkte', hint: 'Das Risiko wird zusätzlich in der Simulation (Tab 7) abgebildet.' })}
+          ${inp('Sicherheitsabschlag Kapitalverzehr', 'inv', null, 'hcVerz', I.hcVerz, { suf: '%-Punkte', hint: 'Szenarien, Tragbarkeit, Übersicht, Steuern, Report.' })}
+          ${inp('Sicherheitsabschlag «Ewige Rente»', 'inv', null, 'hcEwig', I.hcEwig, { suf: '%-Punkte', hint: 'Kapitalerhalt braucht eine vorsichtigere Rendite.' })}
+        </div>
+        <div class="fgrid">
+          ${inp('Entnahmeplan (Tab 7)', 'inv', null, 'tgEntn', I.tgEntn, { type: 'check' })}
+          ${inp('Kapitalverzehr: Szenarien, Tragbarkeit, Übersicht, Steuern, Report', 'inv', null, 'tgVerz', I.tgVerz, { type: 'check' })}
+          ${inp('«Ewige Rente» (Kapitalerhalt)', 'inv', null, 'tgEwig', I.tgEwig, { type: 'check' })}
+          ${inp('Wertentwicklung der Wertschriften-Depots bis zur Pensionierung', 'inv', null, 'tgDepot', I.tgDepot, { type: 'check' })}
+        </div>
+        <div id="pf-sum"></div>
+        <details style="margin-top:10px"><summary><b>Annahmen je Anlageklasse</b> (Rendite, Kosten und Schwankung, änderbar)</summary>
+          <p class="muted small">Gelten für Portfolio A und für Positionen in B und C ohne eigene Angabe. Erwartete nominale Brutto-Rendite pro Jahr (arithmetisch) und Schwankung (Standardabweichung); keine Prognose und keine Garantie. Die Korrelationen zwischen den Klassen sind fest hinterlegt (z. B. Aktien/Obligationen 0,1).</p>
+          <div class="tblwrap"><table class="rt"><thead><tr><th>Anlageklasse</th><th>Brutto-Rendite p. a.</th><th>Kosten (TER) p. a.</th><th>Schwankung p. a.</th></tr></thead><tbody>
+          ${Object.keys(PF_CLS).map(c => { const o = I.pa[c] || {}; const cell = (f, st, i) => `<td><div class="ctl"><input type="number" step="${st}" class="pcin" data-pa="${c}" data-f="${f}" value="${o[f] != null ? esc(o[f]) : ''}" placeholder="${PF_DEF[c][i]}"><span class="suf">%</span></div></td>`;
+            return `<tr><td>${esc(PF_CLS[c])}</td>${cell('gross', 0.1, 0)}${cell('ter', 0.05, 1)}${cell('sig', 0.5, 2)}</tr>`; }).join('')}
+          </tbody></table></div></details>
+      </div></div>`;
+  }
+  function pfAssume(el) {
+    const c = el.dataset.pa, f = el.dataset.f; S.inv.pa[c] = S.inv.pa[c] || {};
+    S.inv.pa[c][f] = el.value === '' ? '' : parseFloat(el.value); save();
+    anlOut(); ubsSum(); pcSum(); pfRefresh();
+  }
+  function pfSumRender() {
+    const box = $('#pf-sum'); if (!box) return;
+    const I = S.inv, K = anlK();
+    const f2 = v => v.toFixed(2).replace('.', ',');
+    const rows = ['A', 'B', 'C'].map(p => { const st = pfStats(p); return `<tr class="${I.act === p ? 'on' : ''}"><td>${esc(pfName(p))}${I.act === p ? ' ✔' : ''}</td>` +
+      (st ? `<td>${f2(st.gross)} %</td><td>${f2(st.ter)} %</td><td>${f2(st.tc)} %</td><td>${f2(st.sigma)} %</td><td>${f2(st.drag)} %</td><td>${f2(st.g)} %</td><td>${Math.round(st.eq)} %</td><td>${f0(K * (st.ter + st.tc) / 100)}</td>` : `<td colspan="8" class="muted">noch keine Positionen erfasst</td>`) + '</tr>'; }).join('');
+    const e = I.eff, G = S.settings, N = S.entn;
+    let eff = '';
+    if (e) {
+      const li = [];
+      if (e.tg.entn) li.push(`Entnahmeplan: Rendite nach Kosten <b>${f2(e.rates.entn)} %</b> (manuell: ${num(N.ret)} %)`);
+      if (e.tg.verz) li.push(`Kapitalverzehr (Szenarien, Tragbarkeit, Übersicht, Steuern, Report): <b>${f2(e.rates.verz)} %</b> (manuell: ${num(G.retRate)} %)`);
+      if (e.tg.ewig) li.push(`«Ewige Rente»: <b>${f2(e.rates.ewig)} %</b> (manuell: ${num(G.retRateEternal)} %)`);
+      if (e.tg.depot) { const nwp = S.assets.filter(a => a.type === 'wp').length; li.push(`Wertschriften-Depots bis zur Pensionierung: <b>${f2(e.rates.depot)} %</b> p. a. (${nwp} ${nwp === 1 ? 'Position' : 'Positionen'} vom Typ Wertschriften)`); }
+      eff = li.length ? `<ul class="pfeff"><li><b>Wirkt jetzt auf:</b></li>${li.map(x => '<li>' + x + '</li>').join('')}</ul>` : `<p class="pfeff">Es ist keine Berechnung zur Übernahme angehakt: es gelten weiterhin die manuellen Annahmen.</p>`;
+    } else if (I.act !== 'none') eff = `<p class="pfeff">Für Portfolio ${esc(PF_AB[I.act])} sind noch keine Positionen mit Gewicht erfasst: es gelten die manuellen Annahmen.</p>`;
+    else eff = `<p class="pfeff">Es gelten die manuellen Annahmen (Entnahmeplan, Einstellungen, Vermögen).</p>`;
+    box.innerHTML = `<div class="tblwrap"><table class="rt pfcmp"><thead><tr><th>Portfolio</th><th>Brutto</th><th>Produkt-kosten</th><th>Steuern / Bank</th><th>Schwankung σ</th><th>Volatilitäts-abzug</th><th>Netto (verwendet)</th><th>Aktienquote</th><th>Kosten p. a. (CHF)</th></tr></thead><tbody>${rows}</tbody></table></div>${eff}`;
+  }
+
+  /* ---------- Variante C: eigene ISIN-Erfassung ---------- */
+  let pcTimer = 0;
+  function pcLater() { clearTimeout(pcTimer); pcTimer = setTimeout(() => { pcRender(); pfRefresh(); }, 0); }
+  function pcRender() {
+    const box = $('#pc-box'); if (!box) return;
+    const ae = document.activeElement, keep = ae && box.contains(ae) && ae.dataset && ae.dataset.pc ? [ae.dataset.pc, ae.dataset.f, ae.selectionStart] : null;
+    const I = S.inv, rows = I.c.rows, sc = entScenario(), K = I.cK === '' ? anlK() : num(I.cK);
+    box.innerHTML = `<div class="card"><h2>Eigenes Portfolio – ISIN erfassen</h2>
+      <p class="muted">Erfassen Sie Ihre eigenen Anlagen (ETF, Fonds, Obligationen, Aktien) mit ISIN, Anlageklasse und Gewicht. Bekannte ISINs aus den Vorlagen A und B ergänzen Name, Klasse und Kosten automatisch. Rendite und Kosten pro Position sind optional; leer = Annahme der Anlageklasse. Wählen Sie oben «C», damit dieses Portfolio in den Berechnungen gilt.</p>
+      <div class="fgrid">${inp('Anlagebetrag', 'inv', null, 'cK', I.cK, { suf: 'CHF', ph: f0(K), hint: 'leer = Startkapital wie im Entnahmeplan (Tab 7)' })}</div>
+      <div class="tblwrap"><table class="rt ubs"><thead><tr><th>ISIN</th><th>Bezeichnung</th><th>Anlageklasse</th><th>Gewicht</th><th>Historie CHF p. a.<small>seit Auflage / 5 J.</small></th><th>Referenz erwartet<small>brutto p. a.</small></th><th>Rendite brutto (optional)</th><th>TER (optional)</th><th>Betrag</th><th></th></tr></thead><tbody id="pc-body">
+      ${rows.length ? rows.map(r => { const a = pfAs(r.cls), isin = String(r.isin || '').trim(), ok = isin && isinOk(isin), pr = pfRef(r);
+        return `<tr><td class="l"><input type="text" class="pcin isin" maxlength="12" value="${esc(r.isin)}" data-pc="${r.id}" data-f="isin" placeholder="IE00B4L5Y983">
+          <small>${!isin ? '' : ok ? `<a href="https://www.justetf.com/de/etf-profile.html?isin=${encodeURIComponent(isin)}" target="_blank" rel="noopener">✔ ISIN gültig · justETF</a>` : '<span class="flag">⚠ Format/Prüfziffer ungültig</span>'}</small></td>
+          <td class="l"><input type="text" class="pcin" style="min-width:230px" value="${esc(r.name)}" data-pc="${r.id}" data-f="name" placeholder="Bezeichnung"></td>
+          <td><select data-pc="${r.id}" data-f="cls">${Object.keys(PF_CLS).map(c => `<option value="${c}" ${r.cls === c ? 'selected' : ''}>${esc(PF_CLS[c])}</option>`).join('')}</select></td>
+          <td><div class="ctl"><input type="number" step="0.5" min="0" class="pcin" style="width:78px" value="${esc(r.w)}" data-pc="${r.id}" data-f="w"><span class="suf">%</span></div></td>
+          <td>${pr ? `${pfFmt(pr.h.since)} % / ${pfFmt(pr.h.c5)} %<small>${pr.h.from} · ${esc(pr.h.basis)}</small>` : '<span class="muted">keine Daten</span>'}</td>
+          <td title="${pr ? esc('Anker ' + pfFmt(pr.mu0) + ' % (' + (pr.h.anchorTxt || 'Klassenannahme') + '), Historie arithmetisch ' + pfFmt(pr.hArith) + ' % mit Gewicht ' + Math.round(pr.wH * 100) + ' %') : ''}">${pr ? `<b>${pfFmt(pr.ref)} %</b><small>Historie ${Math.round(pr.wH * 100)} % gewichtet</small>` : `<span class="muted">${pfFmt(a.gross)} % (Klasse)</span>`}</td>
+          <td><div class="ctl"><input type="number" step="0.1" class="pcin" style="width:78px" value="${esc(r.ret)}" placeholder="${a.gross}" data-pc="${r.id}" data-f="ret"><span class="suf">%</span></div></td>
+          <td><div class="ctl"><input type="number" step="0.01" min="0" class="pcin" style="width:78px" value="${esc(r.ter)}" placeholder="${a.ter}" data-pc="${r.id}" data-f="ter"><span class="suf">%</span></div></td>
+          <td class="amt pc-amt" data-id="${r.id}">${f0(K * num(r.w) / 100)}</td>
+          <td><button class="x" title="Position löschen" data-act="pc-del" data-id="${r.id}">×</button></td></tr>`; }).join('')
+        : `<tr><td colspan="10" class="muted" style="text-align:left">Noch keine Positionen. Mit «+ Position» starten oder eine Vorlage übernehmen.</td></tr>`}
+      </tbody></table></div>
+      <div class="row between wrap" style="margin-top:10px"><div id="pc-sum"></div>
+        <div class="row gap wrap"><button class="btn sm pri" data-act="pc-add">+ Position</button><button class="btn sm" data-act="pc-norm">Auf 100 % normieren</button><button class="btn sm" data-act="pc-copyA">Aus Portfolio A übernehmen</button><button class="btn sm" data-act="pc-copyB">Aus Portfolio B übernehmen</button><button class="btn sm" data-act="pc-applyref" title="Schreibt den Referenzwert in «Rendite brutto» der Positionen mit Daten">Referenz als Rendite übernehmen</button><button class="btn sm" data-act="pc-resetret" title="Leert «Rendite brutto» aller Positionen; es gilt wieder die Klassenannahme">Eigene Renditen leeren</button><button class="btn sm" data-act="pc-clear">Alle löschen</button></div></div>
+      <div class="grid2" style="margin-top:14px"><div><h3>Nach Position</h3><div class="chartbox"><canvas id="c-pc1"></canvas></div></div><div><h3>Nach Anlageklasse</h3><div class="chartbox"><canvas id="c-pc2"></canvas></div></div></div>
+      <div id="pc-kpi"></div>
+      <p class="muted small">Die ISIN-Prüfung kontrolliert Format und Prüfziffer, nicht die Existenz des Produkts. Produktdaten (TER, Domizil, Währung) vor dem Kauf bei justETF, Emittent oder Bank prüfen. Keine Anlageberatung.</p></div>`;
+    pcSum();
+    if (keep) { const n = box.querySelector(`[data-pc="${keep[0]}"][data-f="${keep[1]}"]`); if (n) { n.focus(); try { if (keep[2] != null) n.setSelectionRange(keep[2], keep[2]); } catch (e) { } } }
+  }
+  function pcRefCard(st) {
+    const rows = S.inv.c.rows.filter(r => num(r.w) > 0), tot = rows.reduce((s, r) => s + num(r.w), 0); if (!tot) return '';
+    let cov = 0, hs = 0, h5 = 0, rf = 0;
+    rows.forEach(r => { const x = num(r.w) / tot, pr = pfRef(r), a = pfAs(r.cls); if (pr) { cov += x; hs += x * pr.h.since; h5 += x * pr.h.c5; rf += x * pr.ref; } else rf += x * a.gross; });
+    const f2 = v => v.toFixed(2).replace('.', ',');
+    return `<div class="card" style="margin-top:12px"><h3>Historie und Referenzwert</h3>
+      ${cov > 0 ? `<div class="kv"><span>Historisch gewichtet, seit Auflage (CHF, nach Produktkosten)</span><b>${pfFmt(hs / cov)} % p. a.</b></div>
+      <div class="kv"><span>Historisch gewichtet, letzte 5 Jahre</span><b>${pfFmt(h5 / cov)} % p. a.</b></div>
+      <div class="kv"><span>Abdeckung der Historie</span><b>${Math.round(cov * 100)} % des Portfolios</b></div>` : '<p class="muted small">Für keine der erfassten ISINs sind Historiedaten hinterlegt.</p>'}
+      <div class="kv tot"><span>Referenz: erwartete Brutto-Rendite (Bayes-Mischung aus Annahme und Historie)</span><b>${f2(rf)} % p. a.</b></div>
+      <div class="kv"><span>Im Modell verwendet (Brutto, Klassenannahmen bzw. Ihre Eingaben)</span><b>${f2(st.gross)} % p. a.</b></div>
+      <p class="muted small">Die Historie ist ein geometrischer Durchschnitt (enthält den Volatilitätsabzug bereits) und deshalb nur mit der Netto-Rendite nach Abzügen vergleichbar. Der Referenzwert rechnet sie in eine arithmetische Brutto-Rendite um und gewichtet sie gering, weil 9 bis 14 Jahre Aktienhistorie statistisch wenig über die künftige Rendite aussagen (Standardfehler bei 16 % Schwankung rund 4 Prozentpunkte). Anker sind Ihre Klassenannahme bzw. bei Obligationen die aktuelle Rendite auf Verfall. Die Referenz beeinflusst die Berechnungen nur, wenn Sie sie über «Referenz als Rendite übernehmen» in die Felder schreiben. Daten: iShares CH, justETF, ABN AMRO, UBS-Factsheet, FTD, Stand 29.10.2026; Umrechnungen EUR/USD in CHF mit geschätzten Wechselkursen.</p></div>`;
+  }
+  function pcSum() {
+    const I = S.inv, rows = I.c.rows, sc = entScenario(), K = I.cK === '' ? anlK() : num(I.cK);
+    const tot = rows.reduce((s, r) => s + num(r.w), 0), ok = Math.abs(tot - 100) < 0.05;
+    const sum = $('#pc-sum'); if (sum) sum.innerHTML = rows.length ? `<span class="pill ${ok ? 'ok' : 'no'}">Summe ${tot.toFixed(1)} %</span> ${ok ? '' : `<span class="muted small">Es ${tot < 100 ? 'fehlen ' + (100 - tot).toFixed(1) : 'sind ' + (tot - 100).toFixed(1) + ' zu viel'} %-Punkte (Berechnung erfolgt auf die erfasste Summe normiert).</span>`}` : '';
+    $$('.pc-amt').forEach(c => { const r = rows.find(x => x.id === parseInt(c.dataset.id, 10)); if (r) c.textContent = f0(K * num(r.w) / 100); });
+    const st = pfStats('C'), kp = $('#pc-kpi');
+    if (kp) kp.innerHTML = st ? `<div class="card" style="margin-top:12px"><h3>Kennzahlen Variante C</h3>
+      <div class="kv"><span>Erwartete Brutto-Rendite p. a.</span><b>${st.gross.toFixed(2).replace('.', ',')} %</b></div>
+      <div class="kv"><span>Gewichtete Kosten (TER)</span><b>${st.ter.toFixed(2).replace('.', ',')} % · ${chf(K * st.ter / 100)} p. a.</b></div>
+      <div class="kv tot"><span>Erwartete Netto-Rendite p. a.</span><b>${st.net.toFixed(2).replace('.', ',')} %</b></div>
+      <div class="kv"><span>Aktienquote</span><b>${Math.round(st.eq)} %</b></div></div>
+      ${pcRefCard(st)}` : '';
+    const colors = ['#2a78d6', '#eda100', '#008300', '#e34948', '#1baf7a', '#4a3aa7', '#e87ba4', '#898781', '#4aa3b5', '#c8453b', '#8b4fb8', '#6b6a64'];
+    const act = rows.filter(r => num(r.w) > 0), byCls = {};
+    act.forEach(r => { byCls[PF_CLS[r.cls] || r.cls] = (byCls[PF_CLS[r.cls] || r.cls] || 0) + num(r.w); });
+    if (!$('#c-pc1')) return;
+    drawChart('c-pc1', { type: 'doughnut', data: { labels: act.map(r => r.name || r.isin || 'Position'), datasets: [{ data: act.map(r => +num(r.w).toFixed(2)), backgroundColor: act.map((_, i) => colors[i % 12]), borderWidth: 1 }] }, options: { maintainAspectRatio: false, cutout: '50%', plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${c.label}: ${c.raw} %` } } } } });
+    drawChart('c-pc2', { type: 'bar', data: { labels: Object.keys(byCls), datasets: [{ data: Object.values(byCls).map(v => +v.toFixed(1)), backgroundColor: '#0b7a63' }] }, options: { indexAxis: 'y', maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${c.raw} %` } } }, scales: { x: { ticks: { callback: v => v + ' %' } } } } });
+  }
+  function pcSet(el, final) {
+    const r = S.inv.c.rows.find(x => x.id === parseInt(el.dataset.pc, 10)); if (!r) return;
+    const f = el.dataset.f;
+    if (f === 'w' || f === 'ret' || f === 'ter') { r[f] = el.value === '' ? '' : parseFloat(el.value); if (r[f] !== '' && !isFinite(r[f])) r[f] = ''; save(); pcSum(); pfRefresh(); return; }
+    if (f === 'isin') {
+      r.isin = el.value.replace(/\s+/g, '').toUpperCase(); save();
+      if (!final) return;
+      const k = pfKnown(r.isin);
+      if (k) { if (!String(r.name || '').trim()) r.name = k.name; if (k.cls && PF_CLS[k.cls]) r.cls = k.cls; if ((r.ter === '' || r.ter == null) && k.ter != null) r.ter = k.ter; }
+      save(); pcLater(); return;
+    }
+    r[f] = el.value; save();
+    if (final) pcLater();
+  }
+  function pcAct(a, id) {
+    const rows = S.inv.c.rows;
+    if (a === 'pc-add') rows.push({ id: S.nextId++, isin: '', name: '', cls: 'equity', w: '', ret: '', ter: '' });
+    else if (a === 'pc-del') S.inv.c.rows = rows.filter(r => r.id !== id);
+    else if (a === 'pc-applyref') { rows.forEach(r => { const pr = pfRef(r); if (pr) r.ret = Math.round(pr.ref * 10) / 10; }); }
+    else if (a === 'pc-resetret') { rows.forEach(r => { r.ret = ''; }); }
+    else if (a === 'pc-clear') { if (rows.length && !confirm('Alle Positionen von Variante C löschen?')) return; S.inv.c.rows = []; }
+    else if (a === 'pc-norm') {
+      const t = rows.reduce((s, r) => s + num(r.w), 0); if (!t) return;
+      rows.forEach(r => { r.w = Math.round(num(r.w) / t * 1000) / 10; });
+      const rest = Math.round((100 - rows.reduce((s, r) => s + r.w, 0)) * 10) / 10;
+      if (rest && rows.length) { const big = rows.reduce((x, y) => (y.w > x.w ? y : x)); big.w = Math.round((big.w + rest) * 10) / 10; }
+    } else if (a === 'pc-copyA' || a === 'pc-copyB') {
+      if (rows.length && !confirm('Bestehende Positionen von Variante C ersetzen?')) return;
+      const p = a === 'pc-copyA' ? 'A' : 'B';
+      S.inv.c.rows = pfRows(p).filter(r => r.w > 0).map(r => ({ id: S.nextId++, isin: ((String(r.isin).match(/[A-Z]{2}[A-Z0-9]{9}\d/) || [''])[0]), name: r.name, cls: r.cls, w: Math.round(r.w * 100) / 100, ret: '', ter: r.ter != null ? r.ter : '' }));
+    }
+    save(); pcRender(); pfRefresh();
+  }
+
+  /* ---------- Entnahmeplan: Vergleich der Anlagestrategien (Simulation, Stresstests, Bericht) ---------- */
+  const PF_COL = { A: '#c0392b', B: '#185FA5', C: '#0b7a63', none: '#898781' };
+  const MC_N = 2000;
+  let PF_Z = null;
+  function pfZ(T) {   // feste Zufallszahlen (gleiche Marktverläufe für alle Portfolios, Ergebnis reproduzierbar)
+    if (PF_Z && PF_Z.T >= T) return PF_Z;
+    let s = 0x9e3779b9; const rnd = () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+    const n = MC_N * T, a = new Float32Array(n);
+    for (let i = 0; i < n; i += 2) { const u = Math.max(rnd(), 1e-12), v = rnd(), m = Math.sqrt(-2 * Math.log(u)); a[i] = m * Math.cos(2 * Math.PI * v); if (i + 1 < n) a[i + 1] = m * Math.sin(2 * Math.PI * v); }
+    return (PF_Z = { T, a });
+  }
+  const SHOCKS = [
+    { id: 'crash', name: 'Crash im 1. Jahr', desc: 'Aktien −30 %, Immobilien −20 %, Mischfonds −15 % im ersten Entnahmejahr', yrs: [{ equity: -30, reit: -20, mixed: -15 }] },
+    { id: 'two', name: 'Zwei schlechte Jahre', desc: 'Aktien −20 % und −10 %, Immobilien −15 % und −8 %, Mischfonds −10 % und −5 %', yrs: [{ equity: -20, reit: -15, mixed: -10, bond: -1 }, { equity: -10, reit: -8, mixed: -5 }] },
+    { id: 'lost', name: 'Verlorenes Jahrzehnt', desc: '10 Jahre ohne Rendite bei Aktien und Immobilien', yrs: Array.from({ length: 10 }, () => ({ equity: 0, reit: 0, mixed: 1 })) },
+    { id: 'rates', name: 'Zinsanstieg', desc: 'Obligationen −8 %, Aktien −8 %, Immobilien −10 %, Mischfonds −6 % im ersten Jahr', yrs: [{ bond: -8, equity: -8, reit: -10, mixed: -6 }] }
+  ];
+  // Deterministischer Pfad: rpAt(t) = nominale Portfoliorendite im Jahr t; Cash-Reserve (bk Jahre) und flexibles Budget (-10 % in Verlustjahren) optional
+  function simPath(c, rpAt, bk, flex) {
+    const infl = c.infl, base = 12 * c.W * (1 + c.zf * 6.5 / 12), tgt = bk * base, rcR = (1 + c.rc) / (1 + infl);
+    let Bc = 0, Bp = c.K0; if (bk > 0) { Bc = Math.min(Bp, tgt); Bp -= Bc; }
+    const path = [c.K0]; let depl = null, last = c.K0;
+    for (let t = 0; t < c.years; t++) {
+      Bp += c.laterAt[t] || 0;
+      const r = rpAt(t), need = base * (flex && r < 0 ? 0.9 : 1);
+      Bp *= (1 + r) / (1 + infl); Bc *= rcR;
+      const s1 = Bp + Bc, x = Math.min(Bc, need); Bc -= x; Bp -= need - x;
+      if (Bp < 0) { Bc += Bp; Bp = 0; }
+      if (bk > 0 && r > 0) { const add = Math.min(Bp, Math.max(0, tgt - Bc)); Bc += add; Bp -= add; }
+      const tot = Bc + Bp;
+      if (tot < 0) { depl = t + (need > 0 ? Math.max(0, Math.min(1, s1 / need)) : 1); for (let u = t; u < c.years; u++) path.push(0); last = -1; break; }
+      path.push(tot); last = tot;
+    }
+    return { path, end: last, depl, ok: c.W <= 0 || (depl == null && last >= c.rest - 1) };
+  }
+  // Monte-Carlo: N zufällige Marktverläufe (Normalverteilung der Jahresrendite mit Mittel mu und Schwankung sig)
+  function mcRun(c, mu, sig, bk, flex) {
+    const N = MC_N, T = c.years, Z = pfZ(T).a, infl = c.infl, base = 12 * c.W * (1 + c.zf * 6.5 / 12), tgt = bk * base, rcR = (1 + c.rc) / (1 + infl);
+    const tot = new Float32Array(N * (T + 1)); let okN = 0, ruinEarly = 0;
+    for (let i = 0; i < N; i++) {
+      let Bp = c.K0, Bc = 0, ruined = false; if (bk > 0) { Bc = Math.min(Bp, tgt); Bp -= Bc; }
+      tot[i] = c.K0;
+      for (let t = 0; t < T; t++) {
+        Bp += c.laterAt[t] || 0;
+        let r = mu + sig * Z[t * N + i]; if (r < -0.6) r = -0.6;
+        const need = base * (flex && r < 0 ? 0.9 : 1);
+        Bp *= (1 + r) / (1 + infl); Bc *= rcR;
+        const x = Math.min(Bc, need); Bc -= x; Bp -= need - x;
+        if (Bp < 0) { Bc += Bp; Bp = 0; }
+        if (bk > 0 && r > 0) { const add = Math.min(Bp, Math.max(0, tgt - Bc)); Bc += add; Bp -= add; }
+        const tt = Bc + Bp;
+        if (tt < 0) { ruined = true; if (t < T - Math.min(10, T)) ruinEarly++; break; }
+        tot[(t + 1) * N + i] = tt;
+      }
+      if (c.W <= 0 || (!ruined && tot[T * N + i] >= c.rest - 1)) okN++;
+    }
+    const col = new Float32Array(N), pc = q => col[Math.min(N - 1, Math.floor(q * N))], fan = { p10: [], p50: [], p90: [] };
+    for (let t = 0; t <= T; t++) { for (let i = 0; i < N; i++) col[i] = tot[t * N + i]; col.sort(); fan.p10.push(pc(0.1)); fan.p50.push(pc(0.5)); fan.p90.push(pc(0.9)); }
+    return { succ: okN / N * 100, fan, p10: fan.p10[T], p50: fan.p50[T], p90: fan.p90[T] };
+  }
+  function entSimPf(p, scn) {
+    const I = S.inv, N = S.entn, P = S.profile, pv = (v, d) => (v === '' || v == null ? d : num(v));
+    let eff = null, st = null;
+    if (p !== 'none') {
+      st = pfStats(p); if (!st) return null; const r2 = v => Math.round(v * 100) / 100;
+      eff = { act: p, rate: r2(st.g), rates: { entn: r2(st.g - num(I.hcEntn)), verz: r2(st.g - num(I.hcVerz)), ewig: r2(st.g - num(I.hcEwig)), depot: r2(st.g) }, tg: { entn: !!I.tgEntn, verz: !!I.tgVerz, ewig: !!I.tgEwig, depot: !!I.tgDepot } };
+    }
+    const S2 = Object.assign({}, S, { inv: Object.assign({}, I, { eff }) });
+    const r = E.calc(S2, scn);
+    let K0 = r.L0;
+    if (N.start !== '' && N.start != null) K0 = num(N.start);
+    else if (N.startSc) { const m = S.scenarios.find(x => x.id === parseInt(N.startSc, 10)); if (m) K0 = E.calc(S2, m).L0; }
+    const target = pv(N.target, r.need / 12), income = pv(N.income, r.fixedIn / 12);
+    const years = Math.max(1, Math.round(pv(N.years, Math.max(1, num(S.profile.lifeAge) - num(S.profile.retireAge)))));
+    const ret = st ? st.g - num(I.hcEntn) : num(N.ret), infl = num(N.infl) / 100, z = (1 + ret / 100) / (1 + infl) - 1, rest = num(N.rest);
+    const W = Math.max(0, target - income);
+    const laterAt = new Array(years).fill(0), later = (r.erbeLater || []).map(x => ({ t: Math.max(0, Math.round(x.age - num(P.retireAge))), v: x.v })).filter(x => x.t < years);
+    later.forEach(x => { laterAt[x.t] += x.v; });
+    const K0e = K0 + later.reduce((s, x) => s + x.v / Math.pow(1 + z, x.t), 0);
+    const maxM = E.withdrawal(K0e, z, 0, years, rest), needK = E.capitalNeeded(W, z, 0, years, rest);
+    const tc = Math.max(0, num(I.tc)), cashA = pfAs('cash');
+    const c = { K0, W, years, rest, infl, zf: z, rc: Math.max(0, cashA.gross - cashA.ter - tc) / 100, laterAt };
+    const base = simPath(c, () => ret / 100, 0, false);
+    const bk = num(I.bk), flex = !!I.flex;
+    let stress = null, mc = null, mu = null, sig = null;
+    if (st) {
+      const cn = {}; Object.keys(st.wc).forEach(k => { const a = pfAs(k); cn[k] = (a.gross - a.ter - tc) / 100; });
+      stress = {};
+      SHOCKS.forEach(sh => { stress[sh.id] = simPath(c, t => { const y = sh.yrs[t]; if (!y) return ret / 100; return Object.keys(st.wc).reduce((s, k) => s + st.wc[k] * (y[k] != null ? y[k] / 100 : cn[k]), 0); }, bk, flex); });
+      mu = (st.mu - num(I.hcEntn)) / 100; sig = st.sigma / 100;
+      mc = mcRun(c, mu, sig, bk, flex);
+    }
+    return { key: p, label: p === 'none' ? 'Manuelle Annahme' : pfName(p), st, rate: ret, K0, W, target, income, years, rest, maxM, totalM: maxM + income, needK, K0e, base, endB: base.end, ok: base.ok, depl: base.depl, c, mu, sig, stress, mc, cost: st ? K0 * (st.ter + st.tc) / 100 : null };
+  }
+  function enCompare() {
+    const box = $('#en-cmp'); if (!box) return;
+    const sel = entScenario(); if (!sel) { box.innerHTML = ''; return; }
+    const I = S.inv, P = S.profile, act = I.eff ? I.eff.act : 'none', retA = num(P.retireAge);
+    const sims = ['none', 'A', 'B', 'C'].map(p => entSimPf(p, sel.s)).filter(Boolean);
+    const pfs = sims.filter(x => x.key !== 'none');
+    const head = `<div class="alt alt-pf"><div class="alt-h"><b>Vergleich</b> · Gewählte Anlagestrategie und Alternativen</div>`;
+    if (!pfs.length) { box.innerHTML = head + `<div class="card"><p class="muted">Erfassen Sie im Tab 9 «Anlage-Empfehlung» mindestens ein Portfolio, um die Strategien hier zu vergleichen.</p></div></div>`; return; }
+    const cur = sims.find(x => x.key === act) || sims.find(x => x.key === 'none'), others = sims.filter(x => x !== cur);
+    const bk = num(I.bk), flex = !!I.flex, measures = bk > 0 || flex;
+    const f2 = v => v.toFixed(2).replace('.', ',').replace(/,00$/, ''), f1 = v => v.toFixed(1).replace('.', ','), pc0 = v => f1(v) + ' %';
+    const cm = v => { v = Math.max(0, v); return v >= 1e6 ? 'CHF ' + (v / 1e6).toFixed(2).replace('.', ',') + ' Mio' : 'CHF ' + f0(Math.round(v / 1000)) + ' Tsd'; };
+    const ageOf = d => (retA + d).toFixed(0);
+    const lastsTxt = x => x.depl != null ? `bis Alter ${ageOf(x.depl)}` : (x.ok ? `bis Alter ${retA + cur.years} ✔` : 'Restkapital verfehlt');
+    const lastsSent = x => x.depl != null ? `reicht das Kapital nur bis Alter ${ageOf(x.depl)}` : 'wird das Restkapital nicht erreicht';
+    const lbl = x => (x === cur ? '✔ ' : '') + x.label;
+    const short = x => x.label.split(' · ')[0] + ' · ' + (x.key === 'none' ? 'manuell' : x.label.split(' · ')[1].replace(/^(UBS |ETF-Baukasten )/, ''));
+    const view = ['fan', 'succ', 'end', 'inc', 'stress'].includes(I.cmpView) ? I.cmpView : 'fan';
+    const withMc = pfs.filter(x => x.mc);
+    const nSt = x => x.stress ? SHOCKS.filter(sh => x.stress[sh.id].ok).length : null;
+    const style = eq => eq < 25 ? 'sehr defensiv' : eq < 45 ? 'defensiv' : eq < 65 ? 'ausgewogen' : eq < 80 ? 'wachstumsorientiert' : 'offensiv';
+    let mcAlt = null; if (cur.st) mcAlt = measures ? mcRun(cur.c, cur.mu, cur.sig, 0, false) : mcRun(cur.c, cur.mu, cur.sig, 3, true);
+    const measTxt = [bk > 0 ? 'Cash-Reserve ' + bk + ' Jahre' : '', flex ? 'Budget −10 % in Verlustjahren' : ''].filter(Boolean).join(' + ');
+    // ---- Steuerung (eine Zeile) ----
+    const ctl = `<div class="fgrid cmpctl">
+      ${inp('Darstellung', 'inv', null, 'cmpView', view, { type: 'select', opts: [['fan', 'Kapitalverlauf (Median, schlechter und guter Fall)'], ['succ', 'Erfolgswahrscheinlichkeit'], ['end', 'Endkapital: schlechter Fall / Median / guter Fall'], ['stress', 'Stresstests: Endkapital je Fall'], ['inc', 'Maximal mögliches Einkommen pro Monat']] })}
+      ${inp('Cash-Reserve', 'inv', null, 'bk', I.bk, { type: 'select', opts: [[0, 'keine'], [2, '2 Jahre Entnahmen'], [3, '3 Jahre Entnahmen']] })}
+      ${inp('Budget −10 % in Verlustjahren', 'inv', null, 'flex', I.flex, { type: 'check' })}</div>`;
+    // ---- Kompakte Tabelle ----
+    const tbl = `<div class="tblwrap"><table class="rt pfcmp cmpt"><thead><tr><th>Strategie</th><th>Netto-Rendite</th><th>Aktienquote</th><th>Erfolgsquote</th><th>Endkapital Median</th><th>Schlechter Fall</th><th>Stresstests</th><th>Kosten + Steuern p. a.</th></tr></thead><tbody>
+      ${sims.map(x => `<tr class="${x === cur ? 'on' : ''}"><td>${esc(lbl(x))}</td><td>${f2(x.rate)} %</td><td>${x.st ? Math.round(x.st.eq) + ' %' : '–'}</td>
+        <td class="${x.mc ? (x.mc.succ >= 90 ? 'pos' : x.mc.succ < 75 ? 'neg' : '') : ''}">${x.mc ? pc0(x.mc.succ) : '–'}</td><td>${x.mc ? cm(x.mc.p50) : '–'}</td><td>${x.mc ? cm(x.mc.p10) : '–'}</td>
+        <td class="${x.stress ? (nSt(x) === SHOCKS.length ? 'pos' : 'neg') : ''}">${x.stress ? nSt(x) + ' / ' + SHOCKS.length : '–'}</td><td>${x.cost != null ? cm(x.cost).replace(' Tsd', ' Tsd') : '–'}</td></tr>`).join('')}
+      </tbody></table></div>`;
+    // ---- Details (eingeklappt): weitere Kennzahlen, Stresstests, Methodik ----
+    const det = `<details class="fold" id="cmp-det" ${I.cmpOpen ? 'open' : ''}><summary><b>Details: weitere Kennzahlen, Stresstests, Methodik</b></summary>
+      <div class="tblwrap"><table class="rt pfcmp"><thead><tr><th>Strategie</th><th>Schwankung</th><th>Max. Einkommen / Mt</th><th>Basisfall: Kapital reicht</th><th>Basisfall: Endkapital</th></tr></thead><tbody>
+        ${sims.map(x => `<tr class="${x === cur ? 'on' : ''}"><td>${esc(lbl(x))}</td><td>${x.st ? f1(x.st.sigma) + ' %' : '–'}</td><td>${chf(x.totalM)}</td><td>${lastsTxt(x)}</td><td>${chf(Math.max(0, x.endB))}</td></tr>`).join('')}</tbody></table></div>
+      <h4 style="margin:14px 0 4px">Stresstests (Endkapital in heutiger Kaufkraft)</h4>
+      <div class="tblwrap"><table class="rt pfcmp"><thead><tr><th>Strategie</th><th>Basisfall</th>${SHOCKS.map(s => `<th title="${esc(s.desc)}">${esc(s.name)}</th>`).join('')}</tr></thead><tbody>
+        ${pfs.map(x => { const cell = r => r.ok ? `<td>${cm(r.end)}</td>` : `<td class="neg">${r.depl != null ? 'bis Alter ' + ageOf(r.depl) : 'Rest verfehlt'}</td>`; return `<tr class="${x === cur ? 'on' : ''}"><td>${esc(lbl(x))}</td>${cell(x.base)}${SHOCKS.map(s => cell(x.stress[s.id])).join('')}</tr>`; }).join('')}</tbody></table></div>
+      <p class="muted small">${SHOCKS.map(s => '<b>' + esc(s.name) + ':</b> ' + esc(s.desc)).join('. ')}. Danach normale Rendite. ${measures ? '<b>Gegenmassnahmen aktiv:</b> ' + measTxt + ' (nicht im Basisfall).' : 'Keine Gegenmassnahmen aktiv.'}</p>
+      <p class="muted small"><b>Methodik:</b> Alle Strategien mit gleichem Zielbudget (${chf(cur.target)} / Mt; Steuern können je Rendite leicht abweichen), gleichen Renten/Einkünften, gleicher Laufzeit (${cur.years} Jahre), gleicher Teuerung und gleichem Restkapital (${chf(cur.rest)}); Kaufkraft von heute. Netto-Rendite = verzinste (geometrische) Rendite nach Produktkosten, Steuern/Bank, Volatilitätsabzug und Sicherheitsabschlag Entnahmeplan. Erfolgsquote = Anteil von ${f0(MC_N)} simulierten Marktverläufen (normalverteilte Jahresrenditen, für alle Strategien dieselben), in denen das Kapital bis zum Ende reicht und das Restkapital erreicht wird. Schlechter Fall = Endkapital, das in 90 % der Verläufe erreicht wird; guter Fall = in 10 %. Cash-Reserve: Entnahmen kommen zuerst aus der Reserve, Auffüllen nur nach Gewinnjahren. Max. Einkommen und Basisfall rechnen mit gleichmässiger Rendite. Die Normalverteilung unterschätzt extreme Börsenjahre; Stresstests sind Beispiele, keine Obergrenzen. Keine Anlageberatung.</p></details>`;
+    // ---- Bericht (kompakt) ----
+    const bestS = [...withMc].sort((a, b) => (b.mc.succ - a.mc.succ) || (b.mc.p10 - a.mc.p10))[0];
+    const li = [];
+    if (cur.key === 'none') li.push(`<b>Ausgangslage:</b> Kein Portfolio gewählt. Der Entnahmeplan rechnet mit ${f2(cur.rate)} % ohne Schwankungen; A bis C sind mit Marktschwankungen simuliert.`);
+    else li.push(`<b>Gewählt:</b> ${esc(short(cur))} ist ${style(cur.st.eq)} (${Math.round(cur.st.eq)} % Aktien, Schwankung ${f1(cur.st.sigma)} %). Netto ${f2(cur.st.g)} % (brutto ${f2(cur.st.gross)} − Kosten ${f2(cur.st.ter)} − Steuern/Bank ${f2(cur.st.tc)}${cur.st.drag ? ' − Volatilität ' + f2(cur.st.drag) : ''}). Erfolgsquote <b>${pc0(cur.mc.succ)}</b>, Endkapital Median ${cm(cur.mc.p50)}, schlechter Fall ${cm(cur.mc.p10)}.`);
+    const alt = others.filter(x => x.mc);
+    if (alt.length) li.push(`<b>Alternativen:</b> ` + alt.map(x => { const d = cur.mc ? x.mc.succ - cur.mc.succ : null; return `${esc(short(x))} ${pc0(x.mc.succ)}${d != null && Math.abs(d) >= 0.5 ? ' (' + (d > 0 ? '+' : '−') + f1(Math.abs(d)) + ' Pkt.)' : ''}, schlechter Fall ${cm(x.mc.p10)}${x.cost != null && cur.cost != null && Math.abs(x.cost - cur.cost) >= 100 ? ', Kosten ' + (x.cost > cur.cost ? '+' : '−') + cm(Math.abs(x.cost - cur.cost)) : ''}`; }).join(' · ') + '.');
+    if (cur.stress) {
+      const worst = SHOCKS.map(s => ({ s, r: cur.stress[s.id] })).sort((a, b) => (a.r.ok - b.r.ok) || (a.r.end - b.r.end))[0];
+      li.push(`<b>Stress:</b> ${nSt(cur)} von ${SHOCKS.length} Fällen bestanden. Härtester Fall «${esc(worst.s.name)}»: ${worst.r.ok ? 'Endkapital ' + cm(worst.r.end) : lastsSent(worst.r).replace('reicht das Kapital nur', 'Kapital reicht nur')}.`);
+    }
+    let lvl, vtxt, rec;
+    if (cur.key === 'none') {
+      lvl = cur.ok ? 'mid' : 'bad';
+      vtxt = `Die manuelle Annahme ist im Basisfall ${cur.ok ? 'gedeckt' : 'nicht gedeckt'}, berücksichtigt aber keine Marktschwankungen.`;
+      rec = bestS ? `Wählen Sie in Tab 9 ein Portfolio. Höchste Erfolgsquote: ${esc(short(bestS))} (${pc0(bestS.mc.succ)}).` : 'Wählen Sie in Tab 9 ein Portfolio.';
+    } else {
+      const s = cur.mc.succ; lvl = !cur.ok ? 'bad' : s >= 90 ? 'good' : s >= 75 ? 'mid' : 'bad';
+      vtxt = lvl === 'good' ? `Das Kapital reicht in ${pc0(s)} der Verläufe (Richtwert ≥ 90 %); ${nSt(cur)} von ${SHOCKS.length} Stressfällen bestanden.`
+        : lvl === 'mid' ? `Tragfähig mit Restrisiko: Das Kapital reicht in ${pc0(s)} der Verläufe (Richtwert ≥ 90 %).`
+          : `${!cur.ok ? 'Schon im Basisfall ist das Zielbudget nicht gedeckt. ' : ''}Das Kapital reicht nur in ${pc0(s)} der Verläufe (Richtwert ≥ 90 %).`;
+      const rr = [];
+      if (bestS && bestS !== cur && bestS.mc.succ > s + 2) rr.push(`${esc(short(bestS))} erreicht ${pc0(bestS.mc.succ)} (${bestS.st.eq < cur.st.eq ? 'tiefere' : 'höhere'} Aktienquote ${Math.round(bestS.st.eq)} %)`);
+      if (!measures && mcAlt && mcAlt.succ > s + 1) rr.push(`Cash-Reserve 3 Jahre + flexibles Budget heben die Quote auf ${pc0(mcAlt.succ)}`);
+      if (measures && mcAlt && s > mcAlt.succ + 1) rr.push(`die Gegenmassnahmen bringen +${f1(s - mcAlt.succ)} Pkt.`);
+      if (lvl === 'bad') rr.push('zuerst Budget, Einkünfte, Bezugszeitpunkt oder Laufzeit anpassen, dann erst mehr Risiko');
+      rec = rr.length ? rr.join('; ') + '.' : (lvl === 'good' ? 'Strategie beibehalten und jährlich überprüfen.' : '');
+    }
+    if (rec) li.push(`<b>Empfehlung:</b> ${rec}`);
+    const vLbl = cur.key === 'none' ? (lvl === 'bad' ? 'Annahme reicht nicht' : 'Annahme ungeprüft') : lvl === 'good' ? 'Strategie trägt' : lvl === 'mid' ? 'Strategie mit Restrisiko' : 'Strategie zu riskant';
+    box.innerHTML = head + `<div class="card"><h2>Vergleich der Anlagestrategien</h2>
+      <p class="muted">Gewählt: <b>${esc(cur.label)}</b> (dick dargestellt). Simulation mit ${f0(MC_N)} Marktverläufen.</p>
+      ${ctl}
+      <div class="chartbox"><canvas id="c-enc"></canvas></div>
+      ${tbl}
+      <div class="verdict ${lvl}" style="margin-top:12px"><b>${vLbl}.</b> ${vtxt}</div>
+      <ul class="pfrep">${li.map(x => '<li>' + x + '</li>').join('')}</ul>
+      ${det}</div></div>`;
+    // ---- Eine Grafik, per Auswahl umschaltbar ----
+    const R = a => a.map(Math.round), grid = { grid: { color: 'rgba(128,128,128,.18)' } };
+    let cfg;
+    if (view === 'fan') {
+      const labels = Array.from({ length: cur.years + 1 }, (_, t) => retA + t), ds = [];
+      sims.filter(x => x !== cur).forEach(x => {
+        if (x.mc) { ds.push({ label: '· ' + x.label + ' (schlechter Fall)', data: R(x.mc.fan.p10), borderColor: PF_COL[x.key], borderWidth: 1.2, borderDash: [3, 3], pointRadius: 0, order: 3 }); ds.push({ label: x.label + ' (Median)', data: R(x.mc.fan.p50), borderColor: PF_COL[x.key], borderWidth: 2, pointRadius: 0, order: 2 }); }
+        else ds.push({ label: x.label + ' (ohne Schwankung)', data: R(x.base.path), borderColor: PF_COL.none, borderWidth: 2, borderDash: [6, 4], pointRadius: 0, order: 2 });
+      });
+      if (cur.mc) {
+        ds.push({ label: '· ' + cur.label + ' (schlechter Fall)', data: R(cur.mc.fan.p10), borderColor: PF_COL[cur.key] + '88', borderWidth: 1, pointRadius: 0, order: 3 });
+        ds.push({ label: '· ' + cur.label + ' (guter Fall)', data: R(cur.mc.fan.p90), borderColor: PF_COL[cur.key] + '88', backgroundColor: PF_COL[cur.key] + '33', borderWidth: 1, pointRadius: 0, fill: '-1', order: 3 });
+        ds.push({ label: '✔ ' + cur.label + ' (Median)', data: R(cur.mc.fan.p50), borderColor: PF_COL[cur.key], borderWidth: 4, pointRadius: 0, order: 0 });
+      } else ds.push({ label: '✔ ' + cur.label + ' (ohne Schwankung)', data: R(cur.base.path), borderColor: PF_COL.none, borderWidth: 4, borderDash: [6, 4], pointRadius: 0, order: 0 });
+      cfg = { type: 'line', data: { labels, datasets: ds }, options: { maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'bottom', labels: { filter: it => !it.text.startsWith('·') } }, tooltip: { callbacks: { title: c => 'Alter ' + c[0].label, label: c => `${c.dataset.label.replace(/^· /, '')}: ${chf(c.raw)}` } } }, scales: { x: { title: { display: true, text: 'Alter' }, ...grid }, y: { min: 0, beginAtZero: true, ticks: { callback: v => (v / 1e6).toFixed(1) + ' Mio' }, ...grid } } } };
+    } else if (view === 'succ') {
+      cfg = { type: 'bar', data: { labels: withMc.map(lbl), datasets: [{ type: 'bar', label: 'Erfolgswahrscheinlichkeit', data: withMc.map(x => +x.mc.succ.toFixed(1)), backgroundColor: withMc.map(x => PF_COL[x.key]), borderWidth: withMc.map(x => x === cur ? 3 : 0), borderColor: '#222' }, { type: 'line', label: 'Richtwert 90 %', data: withMc.map(() => 90), borderColor: '#222', borderDash: [6, 4], borderWidth: 2, pointRadius: 0, fill: false }] },
+        options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.raw} %` } } }, scales: { y: { min: 0, max: 100, ticks: { callback: v => v + ' %' }, ...grid } } } };
+    } else if (view === 'end') {
+      cfg = { type: 'bar', data: { labels: withMc.map(lbl), datasets: [{ label: 'Schlechter Fall (10 %)', data: withMc.map(x => Math.round(x.mc.p10)), backgroundColor: '#c8453b' }, { label: 'Median', data: withMc.map(x => Math.round(x.mc.p50)), backgroundColor: '#185FA5' }, { label: 'Guter Fall (90 %)', data: withMc.map(x => Math.round(x.mc.p90)), backgroundColor: '#2e9e6b' }] },
+        options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${chf(c.raw)}` } } }, scales: { y: { min: 0, beginAtZero: true, ticks: { callback: v => (v / 1e6).toFixed(1) + ' Mio' }, ...grid } } } };
+    } else if (view === 'stress') {
+      const cols = ['#185FA5', '#c8453b', '#d9822b', '#8b4fb8', '#4aa3b5'], names = ['Basisfall', ...SHOCKS.map(s => s.name)], get = (x, i) => i === 0 ? x.base : x.stress[SHOCKS[i - 1].id];
+      cfg = { type: 'bar', data: { labels: pfs.map(lbl), datasets: names.map((n, i) => ({ label: n, data: pfs.map(x => Math.round(Math.max(0, get(x, i).end))), backgroundColor: cols[i] })) },
+        options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: c => { const r = get(pfs[c.dataIndex], c.datasetIndex); return `${c.dataset.label}: ${r.ok ? chf(c.raw) : (r.depl != null ? 'Kapital reicht nur bis Alter ' + ageOf(r.depl) : 'Restkapital verfehlt')}`; } } } }, scales: { y: { min: 0, beginAtZero: true, ticks: { callback: v => (v / 1e6).toFixed(1) + ' Mio' }, ...grid } } } };
+    } else {
+      cfg = { type: 'bar', data: { labels: sims.map(lbl), datasets: [{ type: 'bar', label: 'Max. Einkommen / Mt (Entnahme + Renten)', data: sims.map(x => Math.round(x.totalM)), backgroundColor: sims.map(x => PF_COL[x.key]), borderWidth: sims.map(x => x === cur ? 3 : 0), borderColor: '#222' }, { type: 'line', label: 'Zielbudget', data: sims.map(() => Math.round(cur.target)), borderColor: '#222', borderDash: [6, 4], borderWidth: 2, pointRadius: 0, fill: false }] },
+        options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${chf(c.raw)}` } } }, scales: { y: { min: 0, beginAtZero: true, ticks: { callback: v => f0(v) }, ...grid } } } };
+    }
+    drawChart('c-enc', cfg);
+  }
+
   function rAnlage() {
     const I = S.inv, P = S.profile;
     const sugg = N_sugg();
+    pfEnsure();
     $('#p-anlage').innerHTML = `
+      ${pfCardHtml()}
       <div class="alt alt-ubs"><div class="alt-h"><b>Alternative A</b> · UBS-Portfolios (CHF, konkrete Produkte)</div><div id="ubs-box"></div></div>
       <div class="alt alt-etf"><div class="alt-h"><b>Alternative B</b> · Eigener ETF-Baukasten (neutral, anbieterunabhängig)</div>
       <div class="card"><h2>Eigener ETF-Baukasten nach Risikoprofil</h2>
@@ -2402,15 +2911,16 @@ const UBS_PORT = [
           ${inp('Nachhaltigkeit (ESG) bevorzugen', 'inv', null, 'esg', I.esg, { type: 'check' })}
           ${inp('Gold als Beimischung', 'inv', null, 'gold', I.gold, { type: 'check' })}
         </div></div>
-      <div id="an-out"></div></div>`;
+      <div id="an-out"></div></div>
+      <div class="alt alt-own"><div class="alt-h"><b>Alternative C</b> · Eigenes Portfolio (ISIN-Erfassung)</div><div id="pc-box"></div></div>`;
     ubsRender();
     anlOut();
+    pcRender();
+    pfRefresh();
   }
   function N_sugg() { const h = num(S.profile.lifeAge) - num(S.profile.retireAge); return h >= 25 ? 'growth' : h >= 12 ? 'balanced' : 'conservative'; }
-  function anlOut() {
-    const el = $('#an-out'); if (!el) return;
+  function etfSel() {
     const I = S.inv, pk = I.profile === 'auto' || !PROFILES[I.profile] ? N_sugg() : I.profile;
-    const sel = entScenario(), K = sel ? sel.r.L0 : 0;
     let alloc = Object.assign({}, PROFILES[pk][1]); if (!I.gold) { alloc.equity += alloc.gold; alloc.gold = 0; }
     const hz = num(S.profile.lifeAge) - num(S.profile.retireAge) >= 15 ? 'long' : 'medium';
     const pick = (type, n) => {
@@ -2427,6 +2937,12 @@ const UBS_PORT = [
       ps.forEach((e, i) => { etfs.push(e); w.push(share * wts[i]); });
     });
     const tot = w.reduce((s, x) => s + x, 0) || 1; const wp = w.map(x => x / tot * 100);
+    return { pk, alloc, etfs, wp };
+  }
+  function anlOut() {
+    const el = $('#an-out'); if (!el) return;
+    const sel = entScenario(), K = anlK();
+    const { pk, alloc, etfs, wp } = etfSel();
     const ter = etfs.reduce((s, e, i) => s + e.ter * wp[i] / 100, 0);
     const colors = ['#2a78d6', '#eda100', '#008300', '#e34948', '#1baf7a', '#4a3aa7', '#e87ba4', '#898781', '#4aa3b5', '#c8453b', '#8b4fb8'];
     el.innerHTML = `<div class="grid2"><div class="card"><h3>Zielallokation – ${PROFILES[pk][0]}</h3><div class="chartbox"><canvas id="c-inv"></canvas></div></div>
@@ -2448,7 +2964,7 @@ const UBS_PORT = [
   function ubsRender() {
     const box = $('#ubs-box'); if (!box) return;
     const I = S.inv, sel = I.ubsSel || 'D', sc = entScenario();
-    const K = I.ubsK === '' ? (sc ? sc.r.L0 : 0) : num(I.ubsK);
+    const K = I.ubsK === '' ? anlK() : num(I.ubsK);
     let rows;
     if (sel === 'K') {
       const sh = num(I.ubsShare) / 100, m = new Map();
@@ -2461,7 +2977,7 @@ const UBS_PORT = [
       <div class="fgrid">
         ${inp('Portfolio', 'inv', null, 'ubsSel', sel, { type: 'select', opts: [['D', 'Allwetter Defensiv'], ['C', 'Index Chancenorientiert'], ['K', 'Konsolidiert (Mischung beider)']] })}
         ${sel === 'K' ? inp('Anteil Allwetter Defensiv', 'inv', null, 'ubsShare', I.ubsShare, { suf: '%', hint: 'Rest = Index Chancenorientiert. Gewichte der Einzelprodukte in den beiden Portfolios anpassen.' }) : ''}
-        ${inp('Anlagebetrag', 'inv', null, 'ubsK', I.ubsK, { suf: 'CHF', ph: f0(K), hint: 'leer = verfügbares Kapital des Szenarios' })}
+        ${inp('Anlagebetrag', 'inv', null, 'ubsK', I.ubsK, { suf: 'CHF', ph: f0(K), hint: 'leer = Startkapital wie im Entnahmeplan (Tab 7)' })}
       </div>
       <div class="tblwrap"><table class="rt ubs"><thead><tr><th>Anlageklasse</th><th>Baustein</th><th>Produkt</th><th>Ticker / ISIN</th><th>Währung</th><th>Gewicht</th><th>Betrag</th></tr></thead><tbody id="ubs-body">
       ${rows.map(r => `<tr><td>${esc(r.cls)}</td><td>${esc(r.bau)}</td><td class="l"><b>${esc(r.prod)}</b>${r.flag ? `<small class="flag">⚠ ${esc(r.flag)}</small>` : ''}</td><td class="l">${esc(r.tick)}</td><td>${esc(r.ccy)}</td>
@@ -2474,7 +2990,7 @@ const UBS_PORT = [
   }
   function ubsSum(rowsIn, KIn) {
     const I = S.inv, sel = I.ubsSel || 'D', sc = entScenario();
-    const K = KIn != null ? KIn : (I.ubsK === '' ? (sc ? sc.r.L0 : 0) : num(I.ubsK));
+    const K = KIn != null ? KIn : (I.ubsK === '' ? anlK() : num(I.ubsK));
     const rows = rowsIn || (sel === 'K' ? null : ubsRows(sel).map(r => ({ ...r, w: ubsW(sel, r) })));
     let list = rows;
     if (!list) { const sh = num(I.ubsShare) / 100; list = []; ['D', 'C'].forEach(p => ubsRows(p).forEach(r => list.push({ ...r, w: ubsW(p, r) * (p === 'D' ? sh : 1 - sh) }))); }
@@ -2593,11 +3109,11 @@ const UBS_PORT = [
   }
   function rSettings() {
     const G = S.settings;
-    const I = (l, k, o) => inp(l, 'settings', null, k, G[k], o);
+    const I = (l, k, o) => inp(l, 'settings', null, k, o && o.dis ? Geff()[k] : G[k], o);
     $('#p-settings').innerHTML = `
       <div class="card"><h2>Annahmen</h2>
         <h3>Kapitalverzehr & Rendite</h3><div class="fgrid">
-          ${I('Planungsjahr (heute)', 'year', {})}${I('Rendite p. a. (Kapitalverzehr)', 'retRate', { suf: '%' })}${I('Entnahme-Dynamik p. a.', 'dynamic', { suf: '%', hint: 'jährliche Steigerung der Entnahme (Teuerung)' })}${I('Rendite «Ewige Rente»', 'retRateEternal', { suf: '%' })}</div>
+          ${I('Planungsjahr (heute)', 'year', {})}${I('Rendite p. a. (Kapitalverzehr)', 'retRate', pfOn('verz') ? { suf: '%', dis: true, hint: 'Aus Portfolio ' + pfName(S.inv.eff.act) + ' (Tab 9)' } : { suf: '%' })}${I('Entnahme-Dynamik p. a.', 'dynamic', { suf: '%', hint: 'jährliche Steigerung der Entnahme (Teuerung)' })}${I('Rendite «Ewige Rente»', 'retRateEternal', pfOn('ewig') ? { suf: '%', dis: true, hint: 'Aus Portfolio ' + pfName(S.inv.eff.act) + ' (Tab 9)' } : { suf: '%' })}</div>
         <h3>Tragbarkeit</h3><div class="fgrid">
           ${I('Kalkulatorischer Hypothekarzins', 'calcRate', { suf: '%' })}${I('Unterhalt / Nebenkosten (Satz)', 'upkeepRate', { suf: '%' })}${I('Unterhalt berechnen auf', 'upkeepBase', { type: 'select', opts: [['hypo', 'Netto-Hypothek (wie Excel «Normalvariante»)'], ['vw', 'Verkehrswert (Bankenstandard, Satz je Liegenschaft)'], ['fix', 'Festem Betrag p. a.']], hint: 'Bei renovierter Liegenschaft ist ein Satz auf dem vollen Verkehrswert oft zu hoch.' })}${I('Fester Unterhaltsbetrag p. a.', 'upkeepFix', { suf: 'CHF', hint: 'Nur bei Basis «Festem Betrag»' })}${I('Max. Wohnkostenbelastung', 'burdenQuote', { suf: '%', hint: 'Bankenüblich ein Drittel (33.33 %)' })}</div>
         <h3>AHV</h3><div class="fgrid">${I('AHV-Maximalrente', 'ahvMax', { suf: 'CHF / Monat', hint: '2026: 2\'520, ab 2027: 2\'560. Ehepaar-Plafond 150 %.' })}</div>
@@ -2648,14 +3164,16 @@ const UBS_PORT = [
     else if (curTab === 'beurteilung') rBeurt();
     else if (curTab === 'report') rReport();
     else if (curTab === 'entnahme') entOut();
-    else if (curTab === 'anlage') { if (sc === 'inv' && ['ubsSel', 'ubsShare', 'ubsK'].includes(k)) ubsSum(); else anlOut(); }
+    else if (curTab === 'anlage') { if (sc === 'inv' && ['ubsSel', 'ubsShare', 'ubsK'].includes(k)) ubsSum(); else if (sc === 'inv' && k === 'cK') pcSum(); else if (sc === 'inv' && ['act', 'tc', 'vol', 'hcEntn', 'hcVerz', 'hcEwig', 'tgEntn', 'tgVerz', 'tgEwig', 'tgDepot'].includes(k)) { } else anlOut(); pfRefresh(); }
   }
   document.addEventListener('input', e => {
     const el = e.target;
     if (el.dataset.mix) { mixApply(parseInt(el.dataset.mix, 10), el.dataset.f, parseFloat(el.value)); return; }
     if (el.dataset.koName) { const c = S.combos.find(x => x.id === parseInt(el.dataset.koName, 10)); if (c) { c.name = el.value; save(); koOut(); } return; }
     if (el.id === 'gf-text') { S.goalFree = { text: el.value }; save(); gfPreview(); return; }
-    if (el.dataset.ubs) { const p = el.dataset.ubs; S.inv.ubsW[p] = S.inv.ubsW[p] || {}; S.inv.ubsW[p][el.dataset.rid] = el.value === '' ? 0 : parseFloat(el.value); save(); ubsSum(); return; }
+    if (el.dataset.ubs) { const p = el.dataset.ubs; S.inv.ubsW[p] = S.inv.ubsW[p] || {}; S.inv.ubsW[p][el.dataset.rid] = el.value === '' ? 0 : parseFloat(el.value); save(); ubsSum(); pfRefresh(); return; }
+    if (el.dataset.pc && el.tagName !== 'SELECT') { pcSet(el, false); return; }
+    if (el.dataset.pa) { pfAssume(el); return; }
     if (el.id === 'tx-cap') { txCap(); return; }
     if (el.id === 'tx-pk' || el.id === 'tx-rent') { txCmp(); return; }
     if (el.dataset.s && (el.type === 'number' || el.type === 'text')) {
@@ -2663,11 +3181,13 @@ const UBS_PORT = [
       const info = setVal(el); afterChange(info, false);
     }
   });
-  document.addEventListener('toggle', e => { if (e.target.classList && e.target.classList.contains('inspo')) { S.inspoOpen = e.target.open; save(); return; }
+  document.addEventListener('toggle', e => { if (e.target.id === 'cmp-det') { S.inv.cmpOpen = e.target.open; save(); return; }
+    if (e.target.classList && e.target.classList.contains('inspo')) { S.inspoOpen = e.target.open; save(); return; }
      if (e.target.dataset && e.target.dataset.gid) { const g = S.goals.find(x => x.id === parseInt(e.target.dataset.gid, 10)); if (g && g.open !== e.target.open) { g.open = e.target.open; save(); } return; }
      if (e.target.id === 'en-years') { S.entn.yearsClosed = !e.target.open; save(); } }, true);
   document.addEventListener('change', e => {
     const el = e.target;
+    if (el.dataset.pc) { pcSet(el, true); return; }
     if (el.dataset.koCell) { const c = S.combos.find(x => x.id === parseInt(el.dataset.koCell, 10)); if (c) { c.modes = c.modes || {}; c.modes[el.dataset.koBlk] = el.checked ? 'in' : 'out'; save(); koOut(); } return; }
     if (el.id === 'ko-sc') { S.koSc = parseInt(el.value, 10); save(); koOut(); return; }
     if (el.id === 'inspo-n') { S.inspo = Object.assign({ n: 3, round: 0 }, S.inspo); S.inspo.n = parseInt(el.value, 10); S.inspoOpen = true; save(); rBeurt(); return; }
@@ -2688,7 +3208,7 @@ const UBS_PORT = [
       const info = setVal(el);
       if (info.sc === 'entn' && info.k === 'startSc') { info.tgt.startSc = parseInt(info.tgt.startSc, 10) || 0; info.tgt.start = ''; save(); rEntn(); return; }
       if (info.sc === 'entn' && info.k === 'sc') { info.tgt.sc = parseInt(info.tgt.sc, 10) || 0; info.tgt.startSc = 0; info.tgt.start = ''; save(); rEntn(); return; }
-      if (info.sc === 'inv' && info.k === 'ubsSel') { save(); ubsRender(); return; }
+      if (info.sc === 'inv' && info.k === 'ubsSel') { save(); ubsRender(); pfRefresh(); return; }
       const structural = (info.sc === 'assets' && (info.k === 'use')) || (info.sc === 'profile' && info.k === 'civil') || (info.sc === 'budget' && false);
       if (info.sc === 'profile' && info.k === 'canton') { afterChange(info, false); return; }
       if (info.sc === 'scenarios' && info.k === 'name') { afterChange(info, false); return; }
@@ -2698,6 +3218,7 @@ const UBS_PORT = [
   document.addEventListener('click', e => {
     const b = e.target.closest('[data-act]'); if (!b) return;
     const a = b.dataset.act, id = b.dataset.id ? parseInt(b.dataset.id, 10) : null;
+    if (a.startsWith('pc-')) { pcAct(a, id); return; }
     if (a === 'mix-step') { const mid = parseInt(b.dataset.mid, 10), f = b.dataset.f, sl = document.querySelector(`input[data-mix="${mid}"][data-f="${f}"]`); if (sl) { const d = parseFloat(b.dataset.d) * (f === 'v' ? 5000 : 1); sl.value = Math.min(parseFloat(sl.max), Math.max(parseFloat(sl.min), parseFloat(sl.value) + d)); mixApply(mid, f, parseFloat(sl.value)); } return; }
     if (a === 'mix-reset') { delete S.entn.mix; save(); rMix(); entOut(); const st = document.querySelector('#p-entnahme [data-k="start"]'), sel = entScenario(); if (st && sel) st.placeholder = f0(entK0(S.entn, sel.r)); return; }
     if (a === 'del') {
