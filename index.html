@@ -3153,8 +3153,9 @@ const MP_PORT = [
     if (sel && M && !M.empty) drawChart('c-st', cmpFanCfg(M));
   }
 
+
   /* ---------- Nutzungsbedingungen und Haftungsausschluss ---------- */
-  const DISC_VER = '1';
+  const DISC_VER = '1', DISC_DAYS = 7;   // Bestätigung gilt 7 Tage; danach erneut
   const DISC_HTML = `<div class="disc-key">Die Anwendung und alle Ergebnisse werden auf eigenes Risiko genutzt. Es handelt sich um Modellrechnungen ohne Gewähr und nicht um Beratung.</div>
     <h3>1. Zweck</h3><p>Diese Anwendung ist eine private Planungs- und Informationshilfe. Sie rechnet mit vereinfachten Modellen auf Basis Ihrer eigenen Eingaben und Annahmen. Sie ist keine Anlage-, Steuer-, Rechts-, Vorsorge- oder sonstige Finanzberatung, keine Empfehlung und kein Angebot oder Aufforderung zum Kauf oder Verkauf von Finanzinstrumenten.</p>
     <h3>2. Nutzung auf eigenes Risiko</h3><p>Sie nutzen die Anwendung und alle Ergebnisse auf eigenes Risiko und treffen Ihre Entscheide eigenverantwortlich. Holen Sie vor wichtigen finanziellen, steuerlichen, rechtlichen oder vorsorgerechtlichen Entscheiden eine qualifizierte Fachberatung ein.</p>
@@ -3164,19 +3165,21 @@ const MP_PORT = [
     <h3>6. Urheberrecht</h3><p>Alle Rechte vorbehalten, siehe Fusszeile.</p>`;
   function discShow(first) {
     let o = $('#disc'); if (!o) { o = document.createElement('div'); o.id = 'disc'; document.body.appendChild(o); }
-    o.innerHTML = `<div class="disc-box" role="dialog" aria-modal="true" aria-labelledby="disc-t"><h2 id="disc-t">Nutzungsbedingungen und Haftungsausschluss</h2><div class="disc-txt">${DISC_HTML}</div><div class="row gap wrap" style="justify-content:flex-end;margin-top:16px">${first ? '<span class="muted small" style="margin-right:auto">Mit «Gelesen und akzeptiert» bestätigen Sie, diese Bedingungen verstanden zu haben.</span><button type="button" class="btn pri" data-disc-ok>Gelesen und akzeptiert</button>' : '<button type="button" class="btn" data-disc-close>Schliessen</button>'}</div></div>`;
+    o.innerHTML = `<div class="disc-box" role="dialog" aria-modal="true" aria-labelledby="disc-t"><h2 id="disc-t">Nutzungsbedingungen und Haftungsausschluss</h2><div class="disc-txt">${DISC_HTML}</div><div class="row gap wrap" style="justify-content:flex-end;margin-top:16px">${first ? '<span class="muted small" style="margin-right:auto">Mit «Gelesen und akzeptiert» bestätigen Sie, diese Bedingungen verstanden zu haben. Die Bestätigung wird alle 7 Tage erneuert.</span><button type="button" class="btn pri" data-disc-ok>Gelesen und akzeptiert</button>' : '<button type="button" class="btn" data-disc-close>Schliessen</button>'}</div></div>`;
     o.hidden = false; o.dataset.first = first ? '1' : '';
     const b = o.querySelector('button'); if (b) b.focus({ preventScroll: true });
   }
   function discInit() {
     document.addEventListener('click', e => {
       if (e.target.closest('[data-disc]')) { e.preventDefault(); discShow(false); return; }
-      if (e.target.closest('[data-disc-ok]')) { try { localStorage.setItem('rp_disc', DISC_VER); } catch (x) { } const o = $('#disc'); if (o) o.hidden = true; return; }
+      if (e.target.closest('[data-disc-ok]')) { try { localStorage.setItem('rp_disc', DISC_VER + '|' + Date.now()); } catch (x) { } const o = $('#disc'); if (o) o.hidden = true; return; }
       if (e.target.closest('[data-disc-close]')) { const o = $('#disc'); if (o) o.hidden = true; }
     });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') { const o = $('#disc'); if (o && !o.hidden && !o.dataset.first) o.hidden = true; } });
-    let ok = false; try { ok = localStorage.getItem('rp_disc') === DISC_VER; } catch (x) { }
-    if (!ok) discShow(true);
+    const valid = () => { try { const [v, t] = String(localStorage.getItem('rp_disc') || '').split('|'), age = Date.now() - Number(t); return v === DISC_VER && isFinite(age) && age >= -86400000 && age < DISC_DAYS * 86400000; } catch (x) { return false; } };
+    const check = () => { const o = $('#disc'); if (!valid() && (!o || o.hidden)) discShow(true); };
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+    check();
   }
 
   function rAnlage() {
