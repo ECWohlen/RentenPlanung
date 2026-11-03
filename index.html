@@ -192,13 +192,144 @@ table.ko td.ck{text-align:center}table.ko td.ck input{width:20px;height:20px}.ve
 .mixer .mxitem{border-top:1px solid var(--line,#e2e0d8);padding:10px 0}.mixer h4{margin:0 0 6px}.mxrow{display:grid;grid-template-columns:130px 34px 1fr 34px 130px 150px;gap:8px;align-items:center;margin:4px 0}.mxrow input[type=range]{width:100%}.mxval{text-align:right}
 @media(max-width:800px){.mxrow{grid-template-columns:1fr 34px 2fr 34px}.mxrow .mxval,.mxrow .muted{grid-column:1/-1;text-align:left}}
 @media print{.mixer{display:none!important}}
+
+/* ===================== Redesign 2026: Designsystem ===================== */
+:root{--bg:#f3f5f9;--surface:#fff;--surface2:#eef1f7;--text:#0f1b33;--muted:#58677f;--border:#e1e6ef;--accent:#2b59d9;--accent-fg:#fff;--accent-soft:#e8eefc;--pos:#0e855b;--neg:#d23f56;--warnbg:#fff3d4;--warnfg:#6b4a00;--shadow:0 1px 2px rgba(16,24,40,.04),0 6px 20px rgba(16,24,40,.06);--r:16px;--rs:10px;--nav-w:262px;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b1020;--surface:#141b2e;--surface2:#1b2438;--text:#e7ecf6;--muted:#9aa9c4;--border:#26324d;--accent:#7ba0ff;--accent-fg:#0b1226;--accent-soft:#1d2a4f;--pos:#3ad29b;--neg:#ff7d92;--warnbg:#3a3010;--warnfg:#f0d68a;--shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0b1020;--surface:#141b2e;--surface2:#1b2438;--text:#e7ecf6;--muted:#9aa9c4;--border:#26324d;--accent:#7ba0ff;--accent-fg:#0b1226;--accent-soft:#1d2a4f;--pos:#3ad29b;--neg:#ff7d92;--warnbg:#3a3010;--warnfg:#f0d68a;--shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);color-scheme:dark}
+body{font:15px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased;display:grid;grid-template-columns:var(--nav-w) minmax(0,1fr);align-items:start;min-height:100vh}
+#content{min-width:0;grid-column:2;grid-row:1}
+h1,h2,h3,h4{letter-spacing:-.012em}
+h2{font-size:17px;font-weight:650;margin:0 0 10px}h3{font-size:14.5px;font-weight:650}
+/* Seitenleiste */
+body #tabs{display:flex;flex-direction:column;gap:2px;grid-column:1;grid-row:1;position:sticky;top:0;height:100vh;overflow:auto;padding:18px 12px 14px;max-width:none;margin:0;border:0;border-right:1px solid var(--border);background:var(--surface);z-index:40;align-items:stretch}
+.nav-brand{display:flex;align-items:center;gap:10px;padding:2px 8px 14px}
+.nav-brand .lg{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#6a8cff);display:grid;place-items:center;color:#fff;flex:0 0 auto;box-shadow:0 4px 12px color-mix(in srgb,var(--accent) 35%,transparent)}
+.nav-brand b{display:block;font-size:15.5px;letter-spacing:-.01em;line-height:1.15}.nav-brand small{display:block;color:var(--muted);font-size:11.5px}
+.nav-grp{font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);padding:14px 10px 4px}
+body #tabs .tab{display:flex;align-items:center;gap:11px;width:100%;text-align:left;padding:8px 10px;border:0;border-radius:11px;background:none;color:var(--text);font-size:14px;font-weight:550;box-shadow:none;border-bottom:0;white-space:normal;line-height:1.25;filter:none}
+body #tabs .tab:hover{background:var(--surface2);filter:none;color:var(--text)}
+body #tabs .tab .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex:0 0 auto;background:color-mix(in srgb,var(--c) 14%,var(--surface));color:var(--c)}
+body #tabs .tab .ic svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+body #tabs .tab .nm{margin-left:auto;font-size:11px;font-weight:700;color:var(--muted);background:var(--surface2);border-radius:99px;min-width:20px;text-align:center;padding:1px 6px}
+body #tabs .tab.on{background:var(--accent-soft);color:var(--accent);box-shadow:none;border:0}
+body #tabs .tab.on .ic{background:var(--accent);color:var(--accent-fg)}body #tabs .tab.on .nm{background:var(--accent);color:var(--accent-fg)}
+.nav-set{margin-top:auto;padding-top:14px;border-top:1px solid var(--border)}
+.nav-set summary{cursor:pointer;color:var(--muted);font-size:12.5px;font-weight:600;padding:6px 8px;list-style:none}.nav-set summary::-webkit-details-marker{display:none}
+.nav-set summary::before{content:"◐ ";}
+.nav-set .seg{margin:6px 2px 10px}
+body .nav-set #bgbar{display:flex;flex-direction:column;align-items:stretch;gap:8px;margin:0;padding:2px;font-size:12px}
+body .nav-set #bgbar label{display:flex;flex-direction:column;gap:3px;color:var(--muted)}
+body .nav-set #bgbar select{width:100%}
+/* Kopfbereich */
+header{max-width:none;padding:26px 32px 6px;margin:0}
+header h1{font-size:25px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px}
+.sub{font-size:13.5px;margin:0 0 6px;max-width:760px}
+#kpibar{position:sticky;top:0;z-index:30;display:flex;gap:10px;flex-wrap:wrap;align-items:stretch;padding:10px 32px;background:color-mix(in srgb,var(--bg) 86%,transparent);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-bottom:1px solid color-mix(in srgb,var(--border) 70%,transparent)}
+body.tab-start #kpibar{display:none}
+.kp{display:flex;flex-direction:column;gap:1px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:6px 12px;min-width:132px;box-shadow:var(--shadow)}
+.kp span{font-size:10.5px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}.kp b{font-size:16.5px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.01em}.kp small{font-size:11px;color:var(--muted)}
+.kp.ok b{color:var(--pos)}.kp.no b{color:var(--neg)}.kp.amber b{color:#c98400}.kp.link{cursor:pointer}.kp.link:hover{border-color:var(--accent)}
+main{max-width:1320px;margin:0;padding:18px 32px 36px}
+footer{max-width:1320px;margin:0;padding:6px 32px 40px}
+/* Karten */
+.card{border-radius:var(--r);border:1px solid var(--border);box-shadow:var(--shadow);padding:20px 22px;background:var(--surface)}
+.alt{border:1px solid color-mix(in srgb,var(--ac) 28%,var(--border));border-left:4px solid var(--ac);background:color-mix(in srgb,var(--ac) 5%,var(--bg));border-radius:var(--r);padding:12px 14px 2px}
+.alt .card{box-shadow:var(--shadow)}
+.alt-ubs{--ac:#d1495b;background:color-mix(in srgb,#d1495b 5%,var(--bg))}.alt-etf{--ac:#2b59d9;background:color-mix(in srgb,#2b59d9 5%,var(--bg))}.alt-own{--ac:#0f9d7a;background:color-mix(in srgb,#0f9d7a 5%,var(--bg))}.alt-pf{--ac:#6b4fd8;background:color-mix(in srgb,#6b4fd8 5%,var(--bg))}
+.alt-h{background:color-mix(in srgb,var(--ac) 13%,var(--surface));color:color-mix(in srgb,var(--ac) 72%,var(--text));border:1px solid color-mix(in srgb,var(--ac) 30%,transparent);border-radius:99px;padding:3px 12px;font-size:12.5px;margin-bottom:10px}
+.tile{border-radius:14px;background:var(--surface2);border:1px solid color-mix(in srgb,var(--border) 70%,transparent);padding:12px 14px}
+.tile span{font-size:12px;color:var(--muted)}.tile b{display:block;font-size:21px;font-weight:700;letter-spacing:-.015em;font-variant-numeric:tabular-nums;margin:2px 0}
+.tile.ok{background:color-mix(in srgb,var(--pos) 13%,var(--surface))}.tile.no{background:color-mix(in srgb,var(--neg) 12%,var(--surface))}.tile.amber{background:color-mix(in srgb,#eda100 18%,var(--surface))}
+.verdict{border-radius:14px;border-left-width:5px;padding:13px 16px;line-height:1.5}
+.verdict.good{background:color-mix(in srgb,var(--pos) 11%,var(--surface))}.verdict.bad{background:color-mix(in srgb,var(--neg) 10%,var(--surface))}.verdict.mid{background:color-mix(in srgb,#eda100 16%,var(--surface))}
+.pill{font-size:12.5px;padding:3px 10px}.pill.ok{background:color-mix(in srgb,var(--pos) 16%,var(--surface))}.pill.no{background:color-mix(in srgb,var(--neg) 15%,var(--surface))}
+.kv{padding:8px 0;border-bottom:1px solid color-mix(in srgb,var(--border) 75%,transparent)}.kv b{font-variant-numeric:tabular-nums}
+.note,.pfeff{border-radius:12px}
+.warn{border-radius:12px}
+.item{border-radius:14px;background:var(--surface);border-color:var(--border);padding:12px 14px}
+.sccard{border-radius:14px;border-top-width:3px}
+.tag{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.chartbox{border-radius:12px}
+details>summary{color:var(--accent);font-weight:550}
+/* Tabellen */
+.rt th{font-size:11.5px;font-weight:650;text-transform:none;letter-spacing:.01em;color:var(--muted);border-bottom:1px solid var(--border);padding:9px 10px;background:color-mix(in srgb,var(--surface2) 70%,var(--surface))}
+.rt td{border-bottom:1px solid color-mix(in srgb,var(--border) 70%,transparent);padding:8px 10px}
+.rt tbody tr:hover td{background:color-mix(in srgb,var(--accent) 4%,var(--surface))}
+.rt tr.sec td{background:var(--accent-soft);color:var(--accent)}.rt tr.res td{background:var(--surface2)}
+.tblwrap{border-radius:12px}
+/* Eingaben */
+input[type=text],input[type=number],select,textarea{background:var(--surface);border:1px solid var(--border);border-radius:var(--rs);padding:8px 11px;transition:border-color .12s,box-shadow .12s}
+input[type=text]:hover,input[type=number]:hover,select:hover{border-color:color-mix(in srgb,var(--accent) 35%,var(--border))}
+input:focus,select:focus,textarea:focus{outline:0;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+select:not([multiple]){appearance:none;-webkit-appearance:none;padding-right:30px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%2394a3b8' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center}
+.fld label{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.01em}
+.fld small{font-size:11.5px}
+input:disabled{background:var(--surface2);color:var(--muted)}
+.btn{border-radius:var(--rs);padding:8px 14px;font-weight:600;border:1px solid var(--border);background:var(--surface);transition:background .12s,box-shadow .12s,transform .05s}
+.btn:hover{background:var(--surface2)}.btn:active{transform:translateY(1px)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-fg);box-shadow:0 2px 8px color-mix(in srgb,var(--accent) 35%,transparent)}.btn.pri:hover{filter:brightness(1.07);background:var(--accent)}
+.btn.sm{padding:5px 11px;font-size:12.5px;border-radius:9px}
+.x{border-radius:8px}
+/* Schalter und Umschalter */
+.chk input[type=checkbox]{appearance:none;-webkit-appearance:none;width:40px;height:24px;flex:0 0 auto;border-radius:99px;background:color-mix(in srgb,var(--muted) 40%,var(--surface));position:relative;cursor:pointer;transition:background .15s;border:0;padding:0}
+.chk input[type=checkbox]::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s}
+.chk input[type=checkbox]:checked{background:var(--accent)}.chk input[type=checkbox]:checked::after{transform:translateX(16px)}
+.chk input[type=checkbox]:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 30%,transparent)}
+.chk{gap:10px}
+.seg{display:inline-flex;flex-wrap:wrap;gap:2px;padding:3px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;max-width:100%}
+.seg button{border:0;background:none;color:var(--muted);padding:6px 12px;border-radius:9px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.seg button:hover{color:var(--text)}.seg button.on{background:var(--surface);color:var(--accent);box-shadow:0 1px 3px rgba(16,24,40,.14)}
+.seg-hidden{display:none!important}
+/* Details */
+.brow{grid-template-columns:minmax(120px,1fr) 110px 124px 140px 32px}
+.brow .seg{flex-wrap:nowrap;width:100%}.brow .seg button{flex:1;padding:6px 4px;font-size:12px}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) body #tabs .tab .ic{color:color-mix(in srgb,var(--c) 55%,#fff)}}
+:root[data-theme="dark"] body #tabs .tab .ic{color:color-mix(in srgb,var(--c) 55%,#fff)}
+:root[data-theme="dark"] body #tabs .tab.on .ic,:root[data-theme="dark"] body #tabs .tab.on .nm{color:var(--accent-fg)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) body #tabs .tab.on .ic{color:var(--accent-fg)}}
+@media (max-width:560px){.st-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.tile b{font-size:18px}}
+/* Startseite */
+.st-hero{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:22px;align-items:start}
+.st-title{font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px}
+.st-sub{color:var(--muted);margin:0 0 14px;font-size:14px}
+.st-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:14px}
+.st-pts{margin:10px 0 0;padding:0;list-style:none;display:grid;gap:8px}.st-pts li{padding:10px 12px;border-radius:12px;background:var(--surface2);font-size:13.5px}.st-pts b{color:var(--text)}
+.st-chk{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px}
+.st-chk a{display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--text);text-decoration:none;font-size:13.5px;font-weight:550;cursor:pointer}
+.st-chk a:hover{border-color:var(--accent);background:var(--accent-soft)}
+.st-chk i{font-style:normal;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;flex:0 0 auto}
+.st-chk .d i{background:color-mix(in srgb,var(--pos) 18%,var(--surface));color:var(--pos)}.st-chk .o i{background:var(--surface2);color:var(--muted)}
+.st-quick{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
+.st-quick a{display:block;padding:14px 16px;border-radius:14px;background:var(--surface);border:1px solid var(--border);color:var(--text);text-decoration:none;cursor:pointer;box-shadow:var(--shadow)}
+.st-quick a:hover{border-color:var(--accent)}.st-quick b{display:block;font-size:14.5px;margin-bottom:2px}.st-quick span{font-size:12.5px;color:var(--muted)}
+@media (max-width:1100px){.st-hero{grid-template-columns:1fr}}
+/* Mobil: untere Navigationsleiste */
+@media (max-width:980px){
+  body{grid-template-columns:minmax(0,1fr)}#content{grid-column:1}
+  body #tabs{position:fixed;top:auto;bottom:0;left:0;right:0;height:auto;flex-direction:row;gap:2px;padding:6px 8px calc(6px + env(safe-area-inset-bottom));border-right:0;border-top:1px solid var(--border);overflow-x:auto;overflow-y:hidden;z-index:50}
+  body #tabs .tab{flex:0 0 auto;flex-direction:column;width:auto;min-width:64px;gap:3px;padding:5px 8px;font-size:10.5px;text-align:center}
+  body #tabs .tab .nm,.nav-brand,.nav-grp,.nav-set{display:none}
+  body #tabs .tab .ic{width:28px;height:28px}
+  header{padding:18px 16px 4px}#kpibar{padding:8px 16px}main{padding:12px 14px 96px}footer{padding:6px 16px 90px}
+  .kp{min-width:112px;padding:5px 10px}
+}
+@media print{body{display:block}body #tabs,#kpibar{display:none!important}}
+/* Haftungsausschluss */
+#disc{position:fixed;inset:0;z-index:200;background:rgba(10,16,32,.55);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);display:grid;place-items:center;padding:16px}
+#disc[hidden]{display:none}
+.disc-box{background:var(--surface);color:var(--text);border-radius:18px;max-width:740px;width:100%;max-height:90vh;overflow:auto;padding:24px 28px;box-shadow:0 24px 60px rgba(0,0,0,.35);border:1px solid var(--border)}
+.disc-box h2{font-size:20px;margin:0 0 6px}.disc-txt{font-size:13.8px;line-height:1.55}.disc-txt h3{margin:14px 0 3px;font-size:14px}.disc-txt p{margin:0 0 4px}
+.disc-key{margin:10px 0;padding:11px 14px;border-radius:12px;background:var(--warnbg);color:var(--warnfg);font-weight:600}
+a[data-disc]{cursor:pointer;color:var(--accent);text-decoration:underline}
+@media print{#disc{display:none!important}}
 </style></head>
 <body>
 <header><div id="bgbar"><label>Seitenhintergrund <select id="bg-sel"></select></label><input type="color" id="bg-col" value="#f5f4ef" title="Eigene Farbe" hidden><button type="button" id="lay-btn" class="btn sm">Layout bearbeiten</button><label>Sektionen <select id="card-sel"></select></label><input type="color" id="card-col" value="#ffffff" title="Eigene Farbe" hidden></div><h1>Rentenplanung Schweiz</h1>
 <p class="sub">Budget · Vermögen · Kredite · Steuern · Tragbarkeit – Ende-zu-Ende-Planung für die Pensionierung. Läuft offline, Daten bleiben in Ihrem Browser.</p></header>
 <nav id="tabs"></nav>
 <main id="pages"></main>
-<footer><div>Schätzungen ohne Gewähr; keine Steuer-, Vorsorge- oder Anlageberatung. Steuertarife: ESTV-Steuerrechner, Steuerjahr 2026.</div>
+<footer><div>Schätzungen ohne Gewähr; keine Steuer-, Vorsorge-, Rechts- oder Anlageberatung. <b>Nutzung auf eigenes Risiko.</b> <a data-disc>Haftungsausschluss und Nutzungsbedingungen</a>. Steuertarife: ESTV-Steuerrechner, Steuerjahr 2026.</div>
 <div style="margin-top:6px"><b>© Rainer von Arx, Waltenschwil. Alle Rechte vorbehalten.</b> Konzept, Berechnungslogik, Gestaltung und Code dieser Anwendung sind urheberrechtlich geschützt – in dieser sowie in allen früheren und künftigen Versionen. Vervielfältigung, Weitergabe, Veröffentlichung, Bearbeitung oder kommerzielle Nutzung ohne vorherige schriftliche Zustimmung sind untersagt. Eingebettete Drittkomponenten (Chart.js, MIT-Lizenz) bleiben von dieser Regelung unberührt.</div></footer>
 <script>/*!
  * Chart.js v4.4.1
@@ -771,7 +902,7 @@ if (typeof module !== 'undefined') module.exports = Engine;
   { id:'stoxx', name:'iShares Core EURO STOXX 50 UCITS ETF', isin:'IE0008471009', ter:0.10, type:'equity', regions:['europe'], sectors:[], esg:false, dist:'dist', desc:'50 grösste Eurozone-Unternehmen, hohe Liquidität', profiles:['conservative','balanced'], horizon:['medium','long'] },
   // SWITZERLAND
   { id:'cssmi', name:'iShares SMI UCITS ETF (CH)', isin:'CH0008899764', ter:0.35, type:'equity', regions:['ch'], sectors:[], esg:false, dist:'dist', desc:'20 grösste Schweizer Aktien: Nestlé, Novartis, Roche', profiles:['conservative','balanced'], horizon:['medium','long'] },
-  { id:'spi', name:'UBS ETF (CH) SPI (Acc)', isin:'CH0130458182', ter:0.17, type:'equity', regions:['ch'], sectors:[], esg:false, dist:'acc', desc:'Breiter Schweizer Aktienmarkt (~200 Titel)', profiles:['conservative','balanced'], horizon:['medium','long'] },
+  { id:'spi', name:'ETF (CH) SPI (Acc)', isin:'CH0130458182', ter:0.17, type:'equity', regions:['ch'], sectors:[], esg:false, dist:'acc', desc:'Breiter Schweizer Aktienmarkt (~200 Titel)', profiles:['conservative','balanced'], horizon:['medium','long'] },
   // EMERGING MARKETS
   { id:'eimi', name:'iShares Core MSCI EM IMI UCITS ETF (Acc)', isin:'IE00BKM4GZ66', ter:0.18, type:'equity', regions:['em'], sectors:[], esg:false, dist:'acc', desc:'~2 800 Titel aus Schwellenländern, inkl. Small Caps', profiles:['growth','aggressive'], horizon:['long'] },
   { id:'vfem', name:'Vanguard FTSE Emerging Markets UCITS ETF (Dist)', isin:'IE00B3VVMM84', ter:0.22, type:'equity', regions:['em'], sectors:[], esg:false, dist:'dist', desc:'Schwellenländer mit Ausschüttung, Vanguard-Qualität', profiles:['growth','aggressive'], horizon:['long'] },
@@ -783,7 +914,7 @@ if (typeof module !== 'undefined') module.exports = Engine;
   { id:'ibts', name:'iShares € Govt Bond 1–3yr UCITS ETF', isin:'IE00B14X4Q57', ter:0.15, type:'bond', regions:['europe'], sectors:[], esg:false, dist:'dist', desc:'Kurzlaufende Eurostaatsanleihen — stabil, geringe Zinsrisiken', profiles:['conservative','balanced'], horizon:['short','medium'] },
   { id:'iusn', name:'iShares Global Govt Bond UCITS ETF (Acc)', isin:'IE00BYZ28V75', ter:0.20, type:'bond', regions:['world'], sectors:[], esg:false, dist:'acc', desc:'Globale Staatsanleihen, breite Streuung', profiles:['conservative','balanced'], horizon:['short','medium'] },
   // GOLD / COMMODITIES
-  { id:'zgld', name:'UBS ETF (CH) Gold (USD) A-dis', isin:'CH0106027128', ter:0.23, type:'gold', regions:[], sectors:['gold'], esg:false, dist:'dist', desc:'Physisch hinterlegtes Gold, in der Schweiz eingelagert', profiles:['conservative','balanced','growth'], horizon:['medium','long'] },
+  { id:'zgld', name:'ETF (CH) Gold (USD) A-dis', isin:'CH0106027128', ter:0.23, type:'gold', regions:[], sectors:['gold'], esg:false, dist:'dist', desc:'Physisch hinterlegtes Gold, in der Schweiz eingelagert', profiles:['conservative','balanced','growth'], horizon:['medium','long'] },
   { id:'phgp', name:'Invesco Physical Gold ETC', isin:'IE00B579F325', ter:0.19, type:'gold', regions:[], sectors:['gold'], esg:false, dist:'acc', desc:'Günstigstes physisch besichertes Gold-ETC in EUR', profiles:['conservative','balanced','growth'], horizon:['medium','long'] },
   { id:'gsco', name:'iShares Diversified Commodity Swap UCITS ETF', isin:'IE00BDFL4P12', ter:0.19, type:'gold', regions:[], sectors:[], esg:false, dist:'acc', desc:'Breiter Rohstoff-Index (Bloomberg Commodity)', profiles:['growth','aggressive'], horizon:['long'] },
   // REITs
@@ -819,17 +950,17 @@ if (typeof module !== 'undefined') module.exports = Engine;
   // SECTOR — INFRA
   { id:'infr', name:'iShares Global Infrastructure UCITS ETF', isin:'IE00B1FZS467', ter:0.65, type:'equity', regions:['world'], sectors:['infra'], esg:false, dist:'dist', desc:'Infrastruktur global: Versorger, Mautstrassen, Flughäfen', profiles:['conservative','balanced'], horizon:['medium','long'] },
   // ESG
-  { id:'suws', name:'UBS MSCI World Socially Responsible UCITS ETF (Acc)', isin:'IE00BK72HJ67', ter:0.22, type:'equity', regions:['world'], sectors:[], esg:true, dist:'acc', desc:'MSCI World SRI — schliesst Waffen, Tabak, Fossile aus', profiles:['balanced','growth'], horizon:['medium','long'] },
+  { id:'suws', name:'MSCI World Socially Responsible UCITS ETF (Acc)', isin:'IE00BK72HJ67', ter:0.22, type:'equity', regions:['world'], sectors:[], esg:true, dist:'acc', desc:'MSCI World SRI — schliesst Waffen, Tabak, Fossile aus', profiles:['balanced','growth'], horizon:['medium','long'] },
   { id:'esge', name:'iShares MSCI EM ESG Enhanced UCITS ETF', isin:'IE00BFNM3G13', ter:0.18, type:'equity', regions:['em'], sectors:[], esg:true, dist:'acc', desc:'Schwellenländer mit ESG-Filter', profiles:['growth','aggressive'], horizon:['long'] },
   { id:'vnga60e', name:'Vanguard ESG Global All Cap UCITS ETF (Acc)', isin:'IE00BNG8L278', ter:0.24, type:'equity', regions:['world'], sectors:[], esg:true, dist:'acc', desc:'Globales Aktienportfolio mit strikten ESG-Kriterien, inkl. Small Caps', profiles:['balanced','growth'], horizon:['medium','long'] },
 ];
-const UBS_PORT = [
+const MP_PORT = [
 {
 "p": "D",
 "cls": "Cash",
 "bau": "Cash CHF",
 "w": 2.0,
-"prod": "UBS Sparkonto / Kontokorrent",
+"prod": "Sparkonto / Kontokorrent (Hausbank)",
 "tick": "—",
 "ccy": "CHF",
 "flag": ""
@@ -869,10 +1000,10 @@ const UBS_PORT = [
 "cls": "Aktien Schweiz",
 "bau": "Equities Switzerland All Index",
 "w": 10.0,
-"prod": "UBS ETF (CH) - SPI",
+"prod": "ETF (CH) - SPI",
 "tick": "CHSPI / CH0131872431",
 "ccy": "CHF",
-"flag": "Ticker/ISIN passen nicht zusammen: CH0131872431 ist der «UBS Core SPI ETF», der Ticker CHSPI gehört zum «iShares Core SPI (CH)» (CH0237935652). Im E-Banking prüfen."
+"flag": "Ticker/ISIN passen nicht zusammen: CH0131872431 ist der «Core SPI ETF (CH)», der Ticker CHSPI gehört zum «iShares Core SPI (CH)» (CH0237935652). Im E-Banking prüfen."
 },
 {
 "p": "D",
@@ -939,7 +1070,7 @@ const UBS_PORT = [
 "cls": "Immobilien CH",
 "bau": "Property Fund - Swiss Mixed Sima",
 "w": 5.0,
-"prod": "UBS \"Sima\" (Fondsanteile direkt an SIX)",
+"prod": "\"Sima\" (Fondsanteile direkt an SIX)",
 "tick": "SIMA / CH0014420845",
 "ccy": "CHF",
 "flag": ""
@@ -969,7 +1100,7 @@ const UBS_PORT = [
 "cls": "Cash",
 "bau": "Cash CHF",
 "w": 2.0,
-"prod": "UBS Sparkonto / Kontokorrent",
+"prod": "Sparkonto / Kontokorrent (Hausbank)",
 "tick": "—",
 "ccy": "CHF",
 "flag": ""
@@ -1131,7 +1262,7 @@ const UBS_PORT = [
   }
   let saveT = null;
   function save() {
-    clearTimeout(saveT);
+    clearTimeout(saveT); kpiSoon();
     saveT = setTimeout(() => { try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) { } }, 200);
   }
 
@@ -1161,32 +1292,33 @@ const UBS_PORT = [
 
   /* ---------- Tabs ---------- */
   const TABS = [
-    ['budget', 'Budget', '1', '#2a78d6'], ['profil', 'Profil & Wohnort', '2', '#1baf7a'], ['vermoegen', 'Vermögen', '3', '#008300'], ['kredite', 'Kredite', '4', '#e34948'],
+    ['start', 'Start', '⌂', '#2b59d9'], ['budget', 'Budget', '1', '#2a78d6'], ['profil', 'Profil & Wohnort', '2', '#1baf7a'], ['vermoegen', 'Vermögen', '3', '#008300'], ['kredite', 'Kredite', '4', '#e34948'],
     ['vorsorge', 'Vorsorge & Einkünfte', '5', '#8b4fb8'], ['szenarien', 'Szenarien & Tragbarkeit', '6', '#d9822b'], ['entnahme', 'Entnahmeplan', '7', '#4aa3b5'],
-    ['steuern', 'Steuern: Kapital vs. Rente', '8', '#c8453b'], ['anlage', 'Anlage-Empfehlung', '9', '#4a3aa7'], ['kombi', 'Kombinationen', '◆', '#2a9d8f'], ['uebersicht', 'Gesamtübersicht', '★', '#185FA5'], ['beurteilung', 'Beurteilung', '✔', '#b0388a'], ['report', 'Management Report', '▤', '#1f3a5f'], ['settings', 'Annahmen & Daten', '⚙', '#6b6a64']
+    ['steuern', 'Steuern: Kapital vs. Rente', '8', '#c8453b'], ['anlage', 'Portfolio-Modelle', '9', '#4a3aa7'], ['kombi', 'Kombinationen', '◆', '#2a9d8f'], ['uebersicht', 'Gesamtübersicht', '★', '#185FA5'], ['beurteilung', 'Beurteilung', '✔', '#b0388a'], ['report', 'Management Report', '▤', '#1f3a5f'], ['settings', 'Annahmen & Daten', '⚙', '#6b6a64']
   ];
   let curTab = 'budget';
   let BE = null;
   const charts = {};
   function showTab(t) {
     pfSync();
-    curTab = t; document.body.classList.toggle('tab-report', t === 'report');
+    curTab = t; document.body.classList.toggle('tab-report', t === 'report'); document.body.classList.toggle('tab-start', t === 'start');
     $$('.tab').forEach(b => b.classList.toggle('on', b.dataset.t === t));
     $$('.page').forEach(p => p.classList.toggle('on', p.id === 'p-' + t));
     renderPage(t);
     if (typeof LAY !== 'undefined') LAY.refresh();
     window.scrollTo({ top: 0 });
     try { sessionStorage.setItem('rp_tab', t); } catch (e) { }
+    kpiSoon();
   }
-  function renderPage(t) { ({ budget: rBudget, profil: rProfil, vermoegen: rVermoegen, kredite: rKredite, vorsorge: rVorsorge, szenarien: rSzen, steuern: rSteuern, entnahme: rEntn, anlage: rAnlage, kombi: rKombi, uebersicht: rUeb, beurteilung: rBeurt, report: rReport, settings: rSettings })[t](); }
+  function renderPage(t) { ({ start: rStart, budget: rBudget, profil: rProfil, vermoegen: rVermoegen, kredite: rKredite, vorsorge: rVorsorge, szenarien: rSzen, steuern: rSteuern, entnahme: rEntn, anlage: rAnlage, kombi: rKombi, uebersicht: rUeb, beurteilung: rBeurt, report: rReport, settings: rSettings })[t](); }
   let cardDark = null;
   function drawChart(id, cfg) {
     const el = document.getElementById(id); if (!el) return;
     if (charts[id]) { charts[id].destroy(); }
-    const dark = cardDark != null ? cardDark : matchMedia('(prefers-color-scheme: dark)').matches;
-    Chart.defaults.color = dark ? '#b9b7ae' : '#55534d';
-    Chart.defaults.borderColor = dark ? '#3a3a37' : '#e2e0d8';
-    if (!['doughnut', 'pie', 'polarArea', 'radar'].includes(cfg.type) && id !== 'c-ent' && id !== 'c-enc') applyYCfg(id, cfg, el);
+    const dark = cardDark != null ? cardDark : isDark();
+    Chart.defaults.color = dark ? '#9aa9c4' : '#58677f';
+    Chart.defaults.borderColor = dark ? '#26324d' : '#e1e6ef';
+    if (!['doughnut', 'pie', 'polarArea', 'radar'].includes(cfg.type) && id !== 'c-ent' && id !== 'c-enc' && id !== 'c-st') applyYCfg(id, cfg, el);
     charts[id] = new Chart(el, cfg);
   }
   // Wahlschalter je Diagramm: Y-Achse linear/logarithmisch und Beginn bei 0 / beim tiefsten Wert
@@ -1839,7 +1971,7 @@ const UBS_PORT = [
       ${im('c-curve')}${im('c-inc')}${im('c-sc')}<div class="rp-tbl">${rpTables(SN.html['c-sc'])}</div>
 
       <h2>4. Entwicklung des Kapitals im Ruhestand</h2>
-      <p>Bei einer angenommenen realen Rendite von ${(B.zN * 100).toFixed(1).replace('.', ',')} % (nach Teuerung) und einer monatlichen Entnahme von ${chfm(B.gapM)} entwickelt sich das Kapital wie dargestellt. ${B.lastsAge == null ? 'Es reicht bis über das Planungsalter hinaus.' : 'Es ist ' + lastsTxt + ' aufgebraucht.'} Alle Werte verstehen sich in heutiger Kaufkraft.${B.gapM > 0 ? ` Bei einer um einen Prozentpunkt tieferen Rendite sinkt die tragbare Entnahme auf ${chfm(B.lo)} pro Monat, bei einem Prozentpunkt mehr steigt sie auf ${chfm(B.hi)}.` : ''}</p>
+      <p>Bei einer angenommenen Rendite nach Kosten von ${String(Math.round(num(entEff().ret) * 100) / 100).replace('.', ',')} %${pfLabel()} und einer Teuerung von ${String(Math.round(num(S.entn.infl) * 100) / 100).replace('.', ',')} %, also einer realen Rendite von ${(B.zN * 100).toFixed(1).replace('.', ',')} %, und einer monatlichen Entnahme von ${chfm(B.gapM)} entwickelt sich das Kapital wie dargestellt. ${B.lastsAge == null ? 'Es reicht bis über das Planungsalter hinaus.' : 'Es ist ' + lastsTxt + ' aufgebraucht.'} Alle Werte verstehen sich in heutiger Kaufkraft.${B.gapM > 0 ? ` Bei einer um einen Prozentpunkt tieferen Rendite sinkt die tragbare Entnahme auf ${chfm(B.lo)} pro Monat, bei einem Prozentpunkt mehr steigt sie auf ${chfm(B.hi)}.` : ''}</p>
       ${SN.html.enTiles || ''}${im('c-ent')}
 
       ${(O.lines || []).length > 1 ? `<h2>5. Varianten bei Pensionierung</h2>
@@ -1853,7 +1985,7 @@ const UBS_PORT = [
       <ul class="rp-fazit">${fazit.map(t => `<li>${t}</li>`).join('')}</ul>
       <p><b>Nächste Schritte:</b></p><ul>${B.acts.map(t => `<li>${t}</li>`).join('')}</ul>
 
-      <div class="rp-foot">Grundlagen: Steuerjahr 2026, Rendite ${num(entEff().ret) || '–'} %${pfLabel()}, Teuerung ${num(S.entn.infl) || '–'} %, kalkulatorischer Hypothekarzins ${num(G.calcRate)} %. Schätzungen ohne Gewähr; keine Steuer-, Vorsorge- oder Anlageberatung. © Rainer von Arx, Waltenschwil. Alle Rechte vorbehalten.</div>
+      <div class="rp-foot">Grundlagen: Steuerjahr 2026, Rendite ${num(entEff().ret) || '–'} %${pfLabel()}, Teuerung ${num(S.entn.infl) || '–'} %, kalkulatorischer Hypothekarzins ${num(G.calcRate)} %. Schätzungen ohne Gewähr; keine Steuer-, Vorsorge-, Rechts- oder Anlageberatung. Nutzung auf eigenes Risiko; es gilt der Haftungsausschluss der Anwendung. © Rainer von Arx, Waltenschwil. Alle Rechte vorbehalten.</div>
     </div>`;
     const light = { color: '#333' };
     const mk = (id, cfg) => { const c = document.getElementById(id); if (!c) return; if (charts[id]) charts[id].destroy(); cfg.options = Object.assign({ maintainAspectRatio: false, animation: false }, cfg.options || {}); charts[id] = new Chart(c, cfg); };
@@ -2071,9 +2203,9 @@ const UBS_PORT = [
     const sR = gapM <= 0 ? 4 : lo >= gapM ? (lo / gapM >= 2 ? 4 : lo / gapM >= 1.3 ? 3 : 2) : base >= gapM ? 1 : 0, sLvl = RK[sR];
     out.push(sec(6, 'Anlage, Rendite &amp; Sensitivität', sLvl,
       [[`Entnahme bei ${(zN * 100 - 1).toFixed(1)} %`, chf(lo) + ' / Mt.', lo >= gapM ? 'ok' : 'no'], [`bei ${(zN * 100).toFixed(1)} % (Annahme)`, chf(base) + ' / Mt.', base >= gapM ? 'ok' : 'no'], [`bei ${(zN * 100 + 1).toFixed(1)} %`, chf(hi) + ' / Mt.', hi >= gapM ? 'ok' : 'no'], ['Bedarf', chf(gapM) + ' / Mt.']],
-      [`Eine um 1 Prozentpunkt höhere (reale) Rendite erhöht die tragbare Entnahme um ${chf(hi - base)}/Mt.`, 'Breit gestreute, kostengünstige Portfolios (UBS-Portfolios oder ETF-Baukasten, Tab «Anlage-Empfehlung») nutzen langfristige Renditeprämien.', lo >= gapM ? 'Selbst mit 1 Prozentpunkt weniger Rendite bleibt die Lücke gedeckt.' : null, pfNote()].filter(Boolean),
+      [`Eine um 1 Prozentpunkt höhere (reale) Rendite erhöht die tragbare Entnahme um ${chf(hi - base)}/Mt.`, 'Breit gestreute, kostengünstige Portfolios (Modellportfolios oder ETF-Baukasten, Tab «Portfolio-Modelle») nutzen langfristige Renditeprämien.', lo >= gapM ? 'Selbst mit 1 Prozentpunkt weniger Rendite bleibt die Lücke gedeckt.' : null, pfNote()].filter(Boolean),
       [`Eine um 1 Prozentpunkt tiefere Rendite senkt die tragbare Entnahme um ${chf(base - lo)}/Mt.${lo < gapM ? ' Die Lücke wäre dann nicht mehr gedeckt.' : ''}`, 'Höhere Renditeannahmen bedeuten höheres Schwankungsrisiko; Rückschläge von 20–30 % sind bei Aktienanteilen möglich.', 'Inflation und Währungsschwankungen (CHF) sind nicht vorhersagbar.', 'Kosten und Steuern schmälern die Nettorendite.'],
-      ['Aktienquote nach Risikotragfähigkeit statt nach Renditewunsch wählen.', 'Jährlich rebalancieren und Entnahmen aus dem übergewichteten Anlagebereich tätigen.', 'Bucket-Strategie: Cash für 2–3 Jahre, Obligationen mittelfristig, Aktien langfristig.']));
+      ['Die Aktienquote lässt sich an der Risikotragfähigkeit statt am Renditewunsch ausrichten.', 'Üblich sind jährliches Rebalancing und Entnahmen aus dem übergewichteten Anlagebereich.', 'Bei der Bucket-Strategie liegt Cash für 2–3 Jahre, Obligationen mittelfristig und Aktien langfristig.']));
 
     // 7 Massnahmen
     const acts = [];
@@ -2417,7 +2549,7 @@ const UBS_PORT = [
   // Korrelationen zwischen den Anlageklassen (innerhalb einer Klasse = 1); Näherung für die Portfolio-Schwankung
   const PF_COR = { 'equity|bond': 0.1, 'equity|reit': 0.7, 'equity|gold': 0.1, 'equity|mixed': 0.9, 'bond|cash': 0.1, 'bond|reit': 0.3, 'bond|gold': 0.2, 'bond|mixed': 0.5, 'reit|gold': 0.1, 'reit|mixed': 0.7, 'gold|mixed': 0.2 };
   const pfCorr = (a, b) => (a === b ? 1 : (PF_COR[a + '|' + b] != null ? PF_COR[a + '|' + b] : (PF_COR[b + '|' + a] != null ? PF_COR[b + '|' + a] : 0)));
-  const PF_AB = { A: 'A · UBS-Portfolio', B: 'B · ETF-Baukasten', C: 'C · Eigenes Portfolio' };
+  const PF_AB = { A: 'A · Modellportfolio', B: 'B · ETF-Baukasten', C: 'C · Eigenes Portfolio' };
   function pfEnsure() {
     const I = S.inv; if (!I) return;
     if (I.act == null) I.act = 'none';
@@ -2481,7 +2613,7 @@ const UBS_PORT = [
   const pfOn = t => !!(S.inv && S.inv.eff && S.inv.eff.tg[t]);
   const pfRate = t => { const e = S.inv && S.inv.eff; return e ? (t && e.rates && e.rates[t] != null ? e.rates[t] : e.rate) : null; };
   function pfName(a) {
-    if (a === 'A') return 'A · UBS ' + (UBS_NAMES[S.inv.ubsSel || 'D'] || '');
+    if (a === 'A') return 'A · ' + (MP_NAMES[S.inv.ubsSel || 'D'] || '');
     if (a === 'B') { const pk = S.inv.profile === 'auto' || !PROFILES[S.inv.profile] ? N_sugg() : S.inv.profile; return 'B · ETF-Baukasten ' + PROFILES[pk][0]; }
     return PF_AB[a] || '';
   }
@@ -2507,14 +2639,14 @@ const UBS_PORT = [
     if (!PF_KNOWN) {
       PF_KNOWN = {};
       ETF_DB.forEach(e => { PF_KNOWN[e.isin] = { name: e.name, cls: e.type, ter: e.ter }; });
-      UBS_PORT.forEach(r => (String(r.tick).match(/[A-Z]{2}[A-Z0-9]{9}\d/g) || []).forEach(i => { if (!PF_KNOWN[i]) PF_KNOWN[i] = { name: r.prod, cls: ubsCls(r.cls), ter: null }; }));
+      MP_PORT.forEach(r => (String(r.tick).match(/[A-Z]{2}[A-Z0-9]{9}\d/g) || []).forEach(i => { if (!PF_KNOWN[i]) PF_KNOWN[i] = { name: r.prod, cls: ubsCls(r.cls), ter: null }; }));
     }
     return PF_KNOWN[isin] || null;
   }
 
   /* ---------- Historische Renditen (CHF, Stand 29.10.2026) und Referenzwert je ISIN ---------- */
   // since/c5 = jährliche Durchschnittsrendite (geometrisch, nach Produktkosten, inkl. Ausschüttungen) seit Auflage bzw. 5 Jahre; T = Jahre der Historie.
-  // anchor = vorausschauender Anker statt Klassenannahme (Obligationen: Rendite auf Verfall). Quellen: iShares CH, justETF, ABN AMRO, UBS-Factsheet, FTD.
+  // anchor = vorausschauender Anker statt Klassenannahme (Obligationen: Rendite auf Verfall). Quellen: iShares CH, justETF, ABN AMRO, Fonds-Factsheet, FTD.
   const PF_HIST = {
     'CH0385767733': { since: -0.02, c5: -0.35, T: 9.6, from: '02.2017', basis: 'CHF, Fonds', anchor: 1.0, anchorTxt: 'Rendite auf Verfall 1,0 % (30.09.2026)' },
     'IE00B3RBWM25': { since: 10.59, c5: 8.18, T: 14.4, from: '05.2012', basis: 'CHF, justETF' },
@@ -2540,7 +2672,7 @@ const UBS_PORT = [
       <div class="card"><h2>Welches Portfolio soll gelten?</h2>
         <p class="muted">Das gewählte Portfolio liefert die erwartete Netto-Rendite und ersetzt damit die manuellen Renditeannahmen in den unten gewählten Berechnungen. Netto-Rendite = Brutto-Rendite der Anlageklassen – Produktkosten – Steuern/Bankkosten – Volatilitätsabzug (Schwankungen mindern die tatsächlich verzinste Rendite) – Sicherheitsabschlag. Ihre manuell erfassten Werte bleiben unverändert gespeichert und gelten wieder, sobald Sie «Keines» wählen.</p>
         <div class="fgrid">
-          ${inp('Massgebendes Portfolio', 'inv', null, 'act', I.act, { type: 'select', opts: [['none', 'Keines – manuelle Annahmen'], ['A', 'A · UBS-Portfolio'], ['B', 'B · ETF-Baukasten'], ['C', 'C · Eigenes Portfolio (ISIN-Erfassung)']] })}
+          ${inp('Massgebendes Portfolio', 'inv', null, 'act', I.act, { type: 'select', opts: [['none', 'Keines – manuelle Annahmen'], ['A', 'A · Modellportfolio'], ['B', 'B · ETF-Baukasten'], ['C', 'C · Eigenes Portfolio (ISIN-Erfassung)']] })}
           ${inp('Steuern und Bankkosten p. a.', 'inv', null, 'tc', I.tc, { suf: '%-Punkte', hint: 'Depotgebühren, Courtagen, Steuer auf Ausschüttungen/Zinsen und Vermögenssteuer. Typisch 0,3 bis 0,6.' })}
           ${inp('Volatilitätsabzug anwenden', 'inv', null, 'vol', I.vol, { type: 'check' })}
         </div>
@@ -2633,7 +2765,7 @@ const UBS_PORT = [
       <div class="kv"><span>Abdeckung der Historie</span><b>${Math.round(cov * 100)} % des Portfolios</b></div>` : '<p class="muted small">Für keine der erfassten ISINs sind Historiedaten hinterlegt.</p>'}
       <div class="kv tot"><span>Referenz: erwartete Brutto-Rendite (Bayes-Mischung aus Annahme und Historie)</span><b>${f2(rf)} % p. a.</b></div>
       <div class="kv"><span>Im Modell verwendet (Brutto, Klassenannahmen bzw. Ihre Eingaben)</span><b>${f2(st.gross)} % p. a.</b></div>
-      <p class="muted small">Die Historie ist ein geometrischer Durchschnitt (enthält den Volatilitätsabzug bereits) und deshalb nur mit der Netto-Rendite nach Abzügen vergleichbar. Der Referenzwert rechnet sie in eine arithmetische Brutto-Rendite um und gewichtet sie gering, weil 9 bis 14 Jahre Aktienhistorie statistisch wenig über die künftige Rendite aussagen (Standardfehler bei 16 % Schwankung rund 4 Prozentpunkte). Anker sind Ihre Klassenannahme bzw. bei Obligationen die aktuelle Rendite auf Verfall. Die Referenz beeinflusst die Berechnungen nur, wenn Sie sie über «Referenz als Rendite übernehmen» in die Felder schreiben. Daten: iShares CH, justETF, ABN AMRO, UBS-Factsheet, FTD, Stand 29.10.2026; Umrechnungen EUR/USD in CHF mit geschätzten Wechselkursen.</p></div>`;
+      <p class="muted small">Die Historie ist ein geometrischer Durchschnitt (enthält den Volatilitätsabzug bereits) und deshalb nur mit der Netto-Rendite nach Abzügen vergleichbar. Der Referenzwert rechnet sie in eine arithmetische Brutto-Rendite um und gewichtet sie gering, weil 9 bis 14 Jahre Aktienhistorie statistisch wenig über die künftige Rendite aussagen (Standardfehler bei 16 % Schwankung rund 4 Prozentpunkte). Anker sind Ihre Klassenannahme bzw. bei Obligationen die aktuelle Rendite auf Verfall. Die Referenz beeinflusst die Berechnungen nur, wenn Sie sie über «Referenz als Rendite übernehmen» in die Felder schreiben. Daten: iShares CH, justETF, ABN AMRO, Fonds-Factsheet, FTD, Stand 29.10.2026; Umrechnungen EUR/USD in CHF mit geschätzten Wechselkursen.</p></div>`;
   }
   function pcSum() {
     const I = S.inv, rows = I.c.rows, sc = entScenario(), K = I.cK === '' ? anlK() : num(I.cK);
@@ -2762,7 +2894,7 @@ const UBS_PORT = [
     else if (N.startSc) { const m = S.scenarios.find(x => x.id === parseInt(N.startSc, 10)); if (m) K0 = E.calc(S2, m).L0; }
     const target = pv(N.target, r.need / 12), income = pv(N.income, r.fixedIn / 12);
     const years = Math.max(1, Math.round(pv(N.years, Math.max(1, num(S.profile.lifeAge) - num(S.profile.retireAge)))));
-    const ret = st ? st.g - num(I.hcEntn) : num(N.ret), infl = num(N.infl) / 100, z = (1 + ret / 100) / (1 + infl) - 1, rest = num(N.rest);
+    const ret = st ? eff.rates.entn : num(N.ret), infl = num(N.infl) / 100, z = (1 + ret / 100) / (1 + infl) - 1, rest = num(N.rest);
     const W = Math.max(0, target - income);
     const laterAt = new Array(years).fill(0), later = (r.erbeLater || []).map(x => ({ t: Math.max(0, Math.round(x.age - num(P.retireAge))), v: x.v })).filter(x => x.t < years);
     later.forEach(x => { laterAt[x.t] += x.v; });
@@ -2782,14 +2914,12 @@ const UBS_PORT = [
     }
     return { key: p, label: p === 'none' ? 'Manuelle Annahme' : pfName(p), st, rate: ret, K0, W, target, income, years, rest, maxM, totalM: maxM + income, needK, K0e, base, endB: base.end, ok: base.ok, depl: base.depl, c, mu, sig, stress, mc, cost: st ? K0 * (st.ter + st.tc) / 100 : null };
   }
-  function enCompare() {
-    const box = $('#en-cmp'); if (!box) return;
-    const sel = entScenario(); if (!sel) { box.innerHTML = ''; return; }
+  function cmpModel() {
+    const sel = entScenario(); if (!sel) return null;
     const I = S.inv, P = S.profile, act = I.eff ? I.eff.act : 'none', retA = num(P.retireAge);
     const sims = ['none', 'A', 'B', 'C'].map(p => entSimPf(p, sel.s)).filter(Boolean);
     const pfs = sims.filter(x => x.key !== 'none');
-    const head = `<div class="alt alt-pf"><div class="alt-h"><b>Vergleich</b> · Gewählte Anlagestrategie und Alternativen</div>`;
-    if (!pfs.length) { box.innerHTML = head + `<div class="card"><p class="muted">Erfassen Sie im Tab 9 «Anlage-Empfehlung» mindestens ein Portfolio, um die Strategien hier zu vergleichen.</p></div></div>`; return; }
+    if (!pfs.length) return { empty: true };
     const cur = sims.find(x => x.key === act) || sims.find(x => x.key === 'none'), others = sims.filter(x => x !== cur);
     const bk = num(I.bk), flex = !!I.flex, measures = bk > 0 || flex;
     const f2 = v => v.toFixed(2).replace('.', ',').replace(/,00$/, ''), f1 = v => v.toFixed(1).replace('.', ','), pc0 = v => f1(v) + ' %';
@@ -2798,7 +2928,7 @@ const UBS_PORT = [
     const lastsTxt = x => x.depl != null ? `bis Alter ${ageOf(x.depl)}` : (x.ok ? `bis Alter ${retA + cur.years} ✔` : 'Restkapital verfehlt');
     const lastsSent = x => x.depl != null ? `reicht das Kapital nur bis Alter ${ageOf(x.depl)}` : 'wird das Restkapital nicht erreicht';
     const lbl = x => (x === cur ? '✔ ' : '') + x.label;
-    const short = x => x.label.split(' · ')[0] + ' · ' + (x.key === 'none' ? 'manuell' : x.label.split(' · ')[1].replace(/^(UBS |ETF-Baukasten )/, ''));
+    const short = x => x.label.split(' · ')[0] + ' · ' + (x.key === 'none' ? 'manuell' : x.label.split(' · ')[1].replace(/^(ETF-Baukasten )/, ''));
     const view = ['fan', 'succ', 'end', 'inc', 'stress'].includes(I.cmpView) ? I.cmpView : 'fan';
     const withMc = pfs.filter(x => x.mc);
     const nSt = x => x.stress ? SHOCKS.filter(sh => x.stress[sh.id].ok).length : null;
@@ -2850,11 +2980,34 @@ const UBS_PORT = [
       if (bestS && bestS !== cur && bestS.mc.succ > s + 2) rr.push(`${esc(short(bestS))} erreicht ${pc0(bestS.mc.succ)} (${bestS.st.eq < cur.st.eq ? 'tiefere' : 'höhere'} Aktienquote ${Math.round(bestS.st.eq)} %)`);
       if (!measures && mcAlt && mcAlt.succ > s + 1) rr.push(`Cash-Reserve 3 Jahre + flexibles Budget heben die Quote auf ${pc0(mcAlt.succ)}`);
       if (measures && mcAlt && s > mcAlt.succ + 1) rr.push(`die Gegenmassnahmen bringen +${f1(s - mcAlt.succ)} Pkt.`);
-      if (lvl === 'bad') rr.push('zuerst Budget, Einkünfte, Bezugszeitpunkt oder Laufzeit anpassen, dann erst mehr Risiko');
-      rec = rr.length ? rr.join('; ') + '.' : (lvl === 'good' ? 'Strategie beibehalten und jährlich überprüfen.' : '');
+      if (lvl === 'bad') rr.push('weitere Stellgrössen sind Budget, Einkünfte, Bezugszeitpunkt und Laufzeit');
+      rec = rr.length ? rr.join('; ') + '.' : (lvl === 'good' ? 'Die Annahmen werden üblicherweise jährlich überprüft.' : '');
     }
-    if (rec) li.push(`<b>Empfehlung:</b> ${rec}`);
-    const vLbl = cur.key === 'none' ? (lvl === 'bad' ? 'Annahme reicht nicht' : 'Annahme ungeprüft') : lvl === 'good' ? 'Strategie trägt' : lvl === 'mid' ? 'Strategie mit Restrisiko' : 'Strategie zu riskant';
+    if (rec) li.push(`<b>Hebel:</b> ${rec}`);
+    const vLbl = cur.key === 'none' ? (lvl === 'bad' ? 'Annahme reicht nicht' : 'Annahme ungeprüft') : lvl === 'good' ? 'Modell trägt' : lvl === 'mid' ? 'Modell mit Restrisiko' : 'Modell nicht tragfähig';
+    return { sel, I, P, act, retA, sims, pfs, cur, others, bk, flex, measures, f2, f1, pc0, cm, ageOf, lastsTxt, lastsSent, lbl, short, view, withMc, nSt, style, mcAlt, measTxt, ctl, tbl, det, bestS, li, lvl, vtxt, rec, vLbl };
+  }
+  function cmpFanCfg(M, small) {
+    const { cur, sims, retA, lbl } = M;
+    const R = a => a.map(Math.round), grid = { grid: { color: 'rgba(128,128,128,.18)' } };
+      const labels = Array.from({ length: cur.years + 1 }, (_, t) => retA + t), ds = [];
+      sims.filter(x => x !== cur).forEach(x => {
+        if (x.mc) { ds.push({ label: '· ' + x.label + ' (schlechter Fall)', data: R(x.mc.fan.p10), borderColor: PF_COL[x.key], borderWidth: 1.2, borderDash: [3, 3], pointRadius: 0, order: 3 }); ds.push({ label: x.label + ' (Median)', data: R(x.mc.fan.p50), borderColor: PF_COL[x.key], borderWidth: 2, pointRadius: 0, order: 2 }); }
+        else ds.push({ label: x.label + ' (ohne Schwankung)', data: R(x.base.path), borderColor: PF_COL.none, borderWidth: 2, borderDash: [6, 4], pointRadius: 0, order: 2 });
+      });
+      if (cur.mc) {
+        ds.push({ label: '· ' + cur.label + ' (schlechter Fall)', data: R(cur.mc.fan.p10), borderColor: PF_COL[cur.key] + '88', borderWidth: 1, pointRadius: 0, order: 3 });
+        ds.push({ label: '· ' + cur.label + ' (guter Fall)', data: R(cur.mc.fan.p90), borderColor: PF_COL[cur.key] + '88', backgroundColor: PF_COL[cur.key] + '33', borderWidth: 1, pointRadius: 0, fill: '-1', order: 3 });
+        ds.push({ label: '✔ ' + cur.label + ' (Median)', data: R(cur.mc.fan.p50), borderColor: PF_COL[cur.key], borderWidth: 4, pointRadius: 0, order: 0 });
+      } else ds.push({ label: '✔ ' + cur.label + ' (ohne Schwankung)', data: R(cur.base.path), borderColor: PF_COL.none, borderWidth: 4, borderDash: [6, 4], pointRadius: 0, order: 0 });
+      return { type: 'line', data: { labels, datasets: ds }, options: { maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'bottom', labels: { filter: it => !it.text.startsWith('·') } }, tooltip: { callbacks: { title: c => 'Alter ' + c[0].label, label: c => `${c.dataset.label.replace(/^· /, '')}: ${chf(c.raw)}` } } }, scales: { x: { title: { display: true, text: 'Alter' }, ...grid }, y: { min: 0, beginAtZero: true, ticks: { callback: v => (v / 1e6).toFixed(1) + ' Mio' }, ...grid } } } };
+  }
+  function enCompare() {
+    const box = $('#en-cmp'); if (!box) return;
+    const M = cmpModel(); if (!M) { box.innerHTML = ''; return; }
+    const head = `<div class="alt alt-pf"><div class="alt-h"><b>Vergleich</b> · Gewählte Anlagestrategie und Alternativen</div>`;
+    if (M.empty) { box.innerHTML = head + `<div class="card"><p class="muted">Erfassen Sie im Tab 9 «Portfolio-Modelle» mindestens ein Portfolio, um die Strategien hier zu vergleichen.</p></div></div>`; return; }
+    const { sel, I, P, act, retA, sims, pfs, cur, others, bk, flex, measures, f2, f1, pc0, cm, ageOf, lastsTxt, lastsSent, lbl, short, view, withMc, nSt, style, mcAlt, measTxt, ctl, tbl, det, bestS, li, lvl, vtxt, rec, vLbl } = M;
     box.innerHTML = head + `<div class="card"><h2>Vergleich der Anlagestrategien</h2>
       <p class="muted">Gewählt: <b>${esc(cur.label)}</b> (dick dargestellt). Simulation mit ${f0(MC_N)} Marktverläufen.</p>
       ${ctl}
@@ -2866,18 +3019,7 @@ const UBS_PORT = [
     // ---- Eine Grafik, per Auswahl umschaltbar ----
     const R = a => a.map(Math.round), grid = { grid: { color: 'rgba(128,128,128,.18)' } };
     let cfg;
-    if (view === 'fan') {
-      const labels = Array.from({ length: cur.years + 1 }, (_, t) => retA + t), ds = [];
-      sims.filter(x => x !== cur).forEach(x => {
-        if (x.mc) { ds.push({ label: '· ' + x.label + ' (schlechter Fall)', data: R(x.mc.fan.p10), borderColor: PF_COL[x.key], borderWidth: 1.2, borderDash: [3, 3], pointRadius: 0, order: 3 }); ds.push({ label: x.label + ' (Median)', data: R(x.mc.fan.p50), borderColor: PF_COL[x.key], borderWidth: 2, pointRadius: 0, order: 2 }); }
-        else ds.push({ label: x.label + ' (ohne Schwankung)', data: R(x.base.path), borderColor: PF_COL.none, borderWidth: 2, borderDash: [6, 4], pointRadius: 0, order: 2 });
-      });
-      if (cur.mc) {
-        ds.push({ label: '· ' + cur.label + ' (schlechter Fall)', data: R(cur.mc.fan.p10), borderColor: PF_COL[cur.key] + '88', borderWidth: 1, pointRadius: 0, order: 3 });
-        ds.push({ label: '· ' + cur.label + ' (guter Fall)', data: R(cur.mc.fan.p90), borderColor: PF_COL[cur.key] + '88', backgroundColor: PF_COL[cur.key] + '33', borderWidth: 1, pointRadius: 0, fill: '-1', order: 3 });
-        ds.push({ label: '✔ ' + cur.label + ' (Median)', data: R(cur.mc.fan.p50), borderColor: PF_COL[cur.key], borderWidth: 4, pointRadius: 0, order: 0 });
-      } else ds.push({ label: '✔ ' + cur.label + ' (ohne Schwankung)', data: R(cur.base.path), borderColor: PF_COL.none, borderWidth: 4, borderDash: [6, 4], pointRadius: 0, order: 0 });
-      cfg = { type: 'line', data: { labels, datasets: ds }, options: { maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'bottom', labels: { filter: it => !it.text.startsWith('·') } }, tooltip: { callbacks: { title: c => 'Alter ' + c[0].label, label: c => `${c.dataset.label.replace(/^· /, '')}: ${chf(c.raw)}` } } }, scales: { x: { title: { display: true, text: 'Alter' }, ...grid }, y: { min: 0, beginAtZero: true, ticks: { callback: v => (v / 1e6).toFixed(1) + ' Mio' }, ...grid } } } };
+    if (view === 'fan') { cfg = cmpFanCfg(M);
     } else if (view === 'succ') {
       cfg = { type: 'bar', data: { labels: withMc.map(lbl), datasets: [{ type: 'bar', label: 'Erfolgswahrscheinlichkeit', data: withMc.map(x => +x.mc.succ.toFixed(1)), backgroundColor: withMc.map(x => PF_COL[x.key]), borderWidth: withMc.map(x => x === cur ? 3 : 0), borderColor: '#222' }, { type: 'line', label: 'Richtwert 90 %', data: withMc.map(() => 90), borderColor: '#222', borderDash: [6, 4], borderWidth: 2, pointRadius: 0, fill: false }] },
         options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.raw} %` } } }, scales: { y: { min: 0, max: 100, ticks: { callback: v => v + ' %' }, ...grid } } } };
@@ -2895,16 +3037,159 @@ const UBS_PORT = [
     drawChart('c-enc', cfg);
   }
 
+  /* ===================== Redesign 2026: Navigation, Kopfzeile, Umschalter, Startseite ===================== */
+  const NAV_ICONS = {
+    start: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>',
+    budget: '<path d="M3 7h16a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/><path d="M3 7l12-4v4"/><circle cx="17" cy="14" r="1.2"/>',
+    profil: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 5-6 8-6s6.5 2 8 6"/>',
+    vermoegen: '<path d="M3 10l9-6 9 6"/><path d="M5 10v8M9 10v8M15 10v8M19 10v8"/><path d="M3 21h18"/>',
+    kredite: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/>',
+    vorsorge: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/>',
+    szenarien: '<path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/>',
+    entnahme: '<path d="M3 7l6 6 4-4 8 8"/><path d="M15 17h6v-6"/>',
+    steuern: '<path d="M19 5L5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/>',
+    anlage: '<path d="M12 3v9h9"/><path d="M21 12a9 9 0 11-9-9"/>',
+    kombi: '<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><path d="M17 13v8M13 17h8"/>',
+    uebersicht: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+    beurteilung: '<circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/>',
+    report: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/>',
+    settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>'
+  };
+  const NAV_GROUPS = [['', ['start']], ['Erfassen', ['budget', 'profil', 'vermoegen', 'kredite', 'vorsorge']], ['Planen', ['szenarien', 'entnahme', 'steuern', 'anlage', 'kombi']], ['Auswerten', ['uebersicht', 'beurteilung', 'report']], ['System', ['settings']]];
+  const svg = d => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+  function wrapContent() {
+    if ($('#content')) return;
+    const h = $('header'), m = $('#pages'), f = $('footer'), c = document.createElement('div'), kb = document.createElement('div');
+    c.id = 'content'; kb.id = 'kpibar'; h.before(c); c.append(h, kb, m, f);
+  }
+  function buildNav() {
+    const nav = $('#tabs'), by = Object.fromEntries(TABS.map(t => [t[0], t]));
+    nav.innerHTML = `<div class="nav-brand"><div class="lg">${svg('<path d="M4 17l5-6 4 4 7-9"/><path d="M15 6h5v5"/>').replace('<svg', '<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"')}</div><div><b>Rentenplanung</b><small>Schweiz</small></div></div>` +
+      NAV_GROUPS.map(([g, ks]) => (g ? `<div class="nav-grp">${g}</div>` : '') + ks.filter(k => by[k]).map(k => { const [key, label, n, c] = by[k]; return `<button class="tab" data-t="${key}" style="--c:${c}"><span class="ic">${svg(NAV_ICONS[key] || '')}</span><span>${esc(label)}</span>${/^\d$/.test(n) ? `<em class="nm">${n}</em>` : ''}</button>`; }).join('')).join('') +
+      `<details class="nav-set" id="nav-set"><summary>Darstellung</summary><div id="theme-seg"></div></details>`;
+    const bg = $('#bgbar'); if (bg) $('#nav-set').appendChild(bg);
+  }
+  const isDark = () => (document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches);
+  function applyThemeMode(m) { const r = document.documentElement; if (m === 'light' || m === 'dark') r.dataset.theme = m; else delete r.dataset.theme; }
+  function themeInit() {
+    let th = 'auto'; try { th = localStorage.getItem('rp_theme') || 'auto'; } catch (e) { }
+    applyThemeMode(th);
+    const box = $('#theme-seg'); if (!box) return;
+    box.innerHTML = '<div class="seg">' + [['auto', 'Auto'], ['light', 'Hell'], ['dark', 'Dunkel']].map(([k, l]) => `<button type="button" data-th="${k}" class="${k === th ? 'on' : ''}">${l}</button>`).join('') + '</div>';
+    box.addEventListener('click', e => {
+      const b = e.target.closest('[data-th]'); if (!b) return;
+      try { localStorage.setItem('rp_theme', b.dataset.th); } catch (x) { }
+      applyThemeMode(b.dataset.th); $$('#theme-seg button').forEach(x => x.classList.toggle('on', x === b));
+      applyTheme(); if (curTab) renderPage(curTab); kpiUpdate();
+    });
+  }
+  function chartStyle() {
+    try {
+      const d = Chart.defaults; d.font.family = 'Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif';
+      d.elements.bar.borderRadius = 6; d.elements.bar.borderSkipped = 'start';
+      d.plugins.legend.labels.usePointStyle = true; d.plugins.legend.labels.boxWidth = 8; d.plugins.legend.labels.boxHeight = 8;
+      Object.assign(d.plugins.tooltip, { backgroundColor: 'rgba(15,27,51,.94)', padding: 10, cornerRadius: 10, boxPadding: 4 });
+    } catch (e) { }
+  }
+  /* Kennzahlen-Kopfzeile: nur Werte, die auch Tab 7 verwendet (gleiche Funktion wie der Vergleich) */
+  let kpiT = 0;
+  function kpiSoon() { clearTimeout(kpiT); kpiT = setTimeout(kpiUpdate, 300); }
+  const kpTone = (maxTot, target) => (maxTot >= target ? 'ok' : maxTot >= target * 0.9 ? 'amber' : 'no');
+  function kpiUpdate() {
+    const bar = $('#kpibar'); if (!bar || !S) return;
+    const sel = entScenario();
+    if (!sel) { bar.innerHTML = `<div class="kp link" data-go="szenarien"><span>Planung</span><b>Noch kein Szenario</b><small>In Tab 6 anlegen</small></div>`; return; }
+    const I = S.inv, act = I.eff ? I.eff.act : 'none'; let m; try { m = entSimPf(act, sel.s); } catch (e) { return; }
+    if (!m) return;
+    const succ = m.mc ? m.mc.succ : null;
+    const kp = (l, v, sub, cls, go) => `<div class="kp ${cls || ''} ${go ? 'link' : ''}" ${go ? `data-go="${go}"` : ''}><span>${l}</span><b>${v}</b>${sub ? `<small>${sub}</small>` : ''}</div>`;
+    bar.innerHTML = kp('Szenario', esc(sel.s.name || 'Szenario'), 'Basis der Planung', '', 'szenarien') +
+      kp('Startkapital', chf(m.K0), 'bei Pensionierung', '', 'entnahme') +
+      kp('Portfolio', act === 'none' ? 'Manuell' : esc(pfName(act).split(' · ')[0] + ' · ' + pfName(act).split(' · ')[1].replace(/^(ETF-Baukasten )/, '')), `Rendite ${m.rate.toFixed(2).replace('.', ',')} % netto`, '', 'anlage') +
+      kp('Einkommen / Mt', chf(m.totalM), `Ziel ${f0(m.target)} · max. möglich`, kpTone(m.totalM, m.target), 'entnahme') +
+      kp('Erfolgsquote', succ == null ? '–' : f1p(succ) + ' %', succ == null ? 'Portfolio wählen' : 'Kapital reicht (Simulation)', succ == null ? '' : succ >= 90 ? 'ok' : succ < 75 ? 'no' : 'amber', 'entnahme');
+  }
+  const f1p = v => (Math.round(v * 10) / 10).toFixed(1).replace('.', ',');
+  /* Umschalter statt Dropdown bei 2 bis 4 kurzen Optionen */
+  function enhanceSelects(root) {
+    if (!root) return;
+    root.querySelectorAll('select[data-s]').forEach(sel => {
+      if (sel.dataset.seg || sel.closest('#bgbar,.ycfg,table,.rp-ctl,#lay-panel,.top-actions')) return;
+      const opts = [...sel.options]; if (opts.length < 2 || opts.length > 4) return;
+      if (opts.some(o => o.text.length > 24) || opts.reduce((s, o) => s + o.text.length, 0) > 48) return;
+      sel.dataset.seg = '1';
+      const seg = document.createElement('div'); seg.className = 'seg'; seg.setAttribute('role', 'group');
+      opts.forEach(o => { const b = document.createElement('button'); b.type = 'button'; b.textContent = o.text; b.dataset.v = o.value; if (o.selected) b.classList.add('on'); b.addEventListener('click', () => { if (sel.value === o.value) return; sel.value = o.value; sel.dispatchEvent(new Event('change', { bubbles: true })); }); seg.appendChild(b); });
+      sel.after(seg); sel.classList.add('seg-hidden');
+    });
+  }
+  function observePages() {
+    const pg = $('#pages'); if (!pg || typeof MutationObserver === 'undefined') return; let pend = false;
+    new MutationObserver(() => { if (pend) return; pend = true; requestAnimationFrame(() => { pend = false; enhanceSelects(pg); }); }).observe(pg, { childList: true, subtree: true });
+    document.addEventListener('click', e => { const g = e.target.closest('[data-go]'); if (g && g.dataset.go) showTab(g.dataset.go); });
+  }
+  /* Startseite: zeigt nur Werte aus Vergleich/Entnahmeplan, rechnet nichts Eigenes */
+  function rStart() {
+    const el = $('#p-start'); if (!el) return;
+    const P = S.profile, sub = `${P.name ? esc(P.name) + ' · ' : ''}Alter ${num(P.age)} · Pensionierung mit ${num(P.retireAge)} · Planungshorizont ${num(P.lifeAge)}${P.canton ? ' · Kanton ' + esc(P.canton) : ''}`;
+    const komRel = S.assets.some(a => a.type === 'immo' || E.isInh(a.type));   // Kombinationen nur sinnvoll bei Liegenschaft oder Erbe
+    const have = k => ({ budget: S.budget.length > 0, profil: !!P.canton, vermoegen: S.assets.length > 0, kredite: S.debts.length > 0, vorsorge: S.assets.some(a => a.type === 'pk') || S.incomes.length > 0 || num(S.pension.ahv1) > 0, szenarien: S.scenarios.length > 0, anlage: S.inv.act !== 'none', kombi: !komRel || (Array.isArray(S.combos) && S.combos.length > 0), settings: S.goals.length > 0 })[k];
+    const chk = [['budget', 'Budget erfasst'], ['profil', 'Profil und Wohnort'], ['vermoegen', 'Vermögen erfasst'], ['kredite', 'Kredite (falls vorhanden)'], ['vorsorge', 'Vorsorge und Einkünfte'], ['szenarien', 'Szenario angelegt'], ['anlage', 'Portfolio gewählt'], ['kombi', komRel ? 'Kombinationen angelegt' : 'Kombinationen (nicht nötig)']]
+      .map(([k, l]) => { const d = have(k); return `<a class="${d ? 'd' : 'o'}" data-go="${k}"><i>${d ? '✓' : '·'}</i>${l}</a>`; }).join('');
+    const quick = `<div class="st-quick"><a data-go="entnahme"><b>Entnahmeplan und Vergleich</b><span>Kapitalverlauf, Strategien, Stresstests</span></a><a data-go="anlage"><b>Portfolio-Modelle</b><span>Portfolios A, B, C und Auswahl</span></a><a data-go="beurteilung"><b>Beurteilung</b><span>Chancen, Risiken, Lebensstil</span></a><a data-go="report"><b>Management Report</b><span>Drucken oder als PDF speichern</span></a></div>`;
+    const sel = entScenario(); let M = null; try { M = sel ? cmpModel() : null; } catch (e) { M = null; }
+    let top;
+    if (!sel) top = `<div class="card"><h2 class="st-title">Willkommen</h2><p class="st-sub">${sub}</p><div class="verdict mid">Legen Sie zuerst Budget, Vermögen und ein Szenario an. Danach erscheinen hier Kennzahlen und das Urteil zur Planung.</div></div>`;
+    else {
+      const m0 = M && !M.empty ? M.cur : entSimPf('none', sel.s), succ = m0.mc ? m0.mc.succ : null;
+      const tile = (l, v, s, cls) => `<div class="tile ${cls || ''}"><span>${l}</span><b>${v}</b><span>${s}</span></div>`;
+      const tiles = `<div class="st-tiles">${tile('Startkapital', chf(m0.K0), 'bei Pensionierung')}${tile('Zielbudget / Mt', chf(m0.target), 'inkl. Steuern und Hypozins')}${tile('Max. Einkommen / Mt', chf(m0.totalM), 'Entnahme + Renten/Einkünfte', kpTone(m0.totalM, m0.target))}${tile('Rendite netto', m0.rate.toFixed(2).replace('.', ',') + ' %', M && !M.empty ? esc(M.cur.label) : 'manuelle Annahme')}${tile('Erfolgsquote', succ == null ? '–' : f1p(succ) + ' %', succ == null ? 'Portfolio in Tab 9 wählen' : 'Richtwert ≥ 90 %', succ == null ? '' : succ >= 90 ? 'ok' : succ < 75 ? 'no' : 'amber')}</div>`;
+      const verdict = M && !M.empty ? `<div class="verdict ${M.lvl}"><b>${M.vLbl}.</b> ${M.vtxt}</div>` : `<div class="verdict mid"><b>Noch kein Portfolio erfasst.</b> Erfassen Sie in Tab 9 ein Portfolio, um Simulation, Stresstests und Urteil zu sehen.</div>`;
+      const pts = M && !M.empty ? `<ul class="st-pts">${M.li.map(x => '<li>' + x + '</li>').join('')}</ul>` : '';
+      top = `<div class="card"><div class="st-hero"><div><h2 class="st-title">Ihre Planung auf einen Blick</h2><p class="st-sub">${sub}</p>${verdict}${tiles}</div><div><h3>Kernaussagen</h3>${pts || '<p class="muted">Sobald ein Portfolio erfasst ist, erscheinen hier die wichtigsten Aussagen.</p>'}</div></div></div>` +
+        (M && !M.empty ? `<div class="card"><div class="row between wrap"><h2 style="margin:0">Kapitalverlauf im Ruhestand</h2><a class="btn sm" data-go="entnahme">Zum Vergleich</a></div><div class="chartbox tall"><canvas id="c-st"></canvas></div></div>` : '');
+    }
+    el.innerHTML = top + `<div class="card"><h2>Stand der Erfassung</h2><div class="st-chk">${chk}</div></div><div class="card"><h2>Weiter zu</h2>${quick}</div><p class="muted small" style="margin:0 4px 12px;grid-column:1/-1">Modellrechnung ohne Gewähr, Nutzung auf eigenes Risiko, keine Anlage-, Steuer-, Rechts- oder Vorsorgeberatung. <a data-disc>Haftungsausschluss und Nutzungsbedingungen</a></p>`;
+    if (sel && M && !M.empty) drawChart('c-st', cmpFanCfg(M));
+  }
+
+  /* ---------- Nutzungsbedingungen und Haftungsausschluss ---------- */
+  const DISC_VER = '1';
+  const DISC_HTML = `<div class="disc-key">Die Anwendung und alle Ergebnisse werden auf eigenes Risiko genutzt. Es handelt sich um Modellrechnungen ohne Gewähr und nicht um Beratung.</div>
+    <h3>1. Zweck</h3><p>Diese Anwendung ist eine private Planungs- und Informationshilfe. Sie rechnet mit vereinfachten Modellen auf Basis Ihrer eigenen Eingaben und Annahmen. Sie ist keine Anlage-, Steuer-, Rechts-, Vorsorge- oder sonstige Finanzberatung, keine Empfehlung und kein Angebot oder Aufforderung zum Kauf oder Verkauf von Finanzinstrumenten.</p>
+    <h3>2. Nutzung auf eigenes Risiko</h3><p>Sie nutzen die Anwendung und alle Ergebnisse auf eigenes Risiko und treffen Ihre Entscheide eigenverantwortlich. Holen Sie vor wichtigen finanziellen, steuerlichen, rechtlichen oder vorsorgerechtlichen Entscheiden eine qualifizierte Fachberatung ein.</p>
+    <h3>3. Keine Gewähr</h3><p>Berechnungen, Steuerschätzungen, Renditen, Kosten, Produkt- und ISIN-Angaben sowie historische Daten sind Näherungen und Beispiele. Sie können fehlerhaft, unvollständig oder veraltet sein und werden ohne Gewähr für Richtigkeit, Vollständigkeit, Aktualität und Eignung für einen bestimmten Zweck bereitgestellt. Vergangene Renditen sind kein verlässlicher Indikator für künftige Ergebnisse. Renditen sind nicht garantiert, und Anlagen können an Wert verlieren.</p>
+    <h3>4. Haftung</h3><p>Soweit gesetzlich zulässig, schliesst der Urheber jede Haftung für direkte und indirekte Schäden, entgangenen Gewinn und Folgeschäden aus, die aus der Nutzung oder Nichtnutzung der Anwendung oder aus Fehlern, Unterbrechungen oder Datenverlust entstehen. Zwingende gesetzliche Haftung, etwa für Absicht und grobe Fahrlässigkeit, bleibt vorbehalten.</p>
+    <h3>5. Daten und Datenschutz</h3><p>Ihre Eingaben bleiben lokal in Ihrem Browser und werden von der Anwendung nicht an Dritte übermittelt. Sie sind selbst für die Sicherung (Export), den Zugriffsschutz Ihres Geräts und den Umgang mit exportierten Dateien verantwortlich.</p>
+    <h3>6. Urheberrecht</h3><p>Alle Rechte vorbehalten, siehe Fusszeile.</p>`;
+  function discShow(first) {
+    let o = $('#disc'); if (!o) { o = document.createElement('div'); o.id = 'disc'; document.body.appendChild(o); }
+    o.innerHTML = `<div class="disc-box" role="dialog" aria-modal="true" aria-labelledby="disc-t"><h2 id="disc-t">Nutzungsbedingungen und Haftungsausschluss</h2><div class="disc-txt">${DISC_HTML}</div><div class="row gap wrap" style="justify-content:flex-end;margin-top:16px">${first ? '<span class="muted small" style="margin-right:auto">Mit «Gelesen und akzeptiert» bestätigen Sie, diese Bedingungen verstanden zu haben.</span><button type="button" class="btn pri" data-disc-ok>Gelesen und akzeptiert</button>' : '<button type="button" class="btn" data-disc-close>Schliessen</button>'}</div></div>`;
+    o.hidden = false; o.dataset.first = first ? '1' : '';
+    const b = o.querySelector('button'); if (b) b.focus({ preventScroll: true });
+  }
+  function discInit() {
+    document.addEventListener('click', e => {
+      if (e.target.closest('[data-disc]')) { e.preventDefault(); discShow(false); return; }
+      if (e.target.closest('[data-disc-ok]')) { try { localStorage.setItem('rp_disc', DISC_VER); } catch (x) { } const o = $('#disc'); if (o) o.hidden = true; return; }
+      if (e.target.closest('[data-disc-close]')) { const o = $('#disc'); if (o) o.hidden = true; }
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') { const o = $('#disc'); if (o && !o.hidden && !o.dataset.first) o.hidden = true; } });
+    let ok = false; try { ok = localStorage.getItem('rp_disc') === DISC_VER; } catch (x) { }
+    if (!ok) discShow(true);
+  }
+
   function rAnlage() {
     const I = S.inv, P = S.profile;
     const sugg = N_sugg();
     pfEnsure();
     $('#p-anlage').innerHTML = `
+      <div class="warn"><b>Modellrechnung, keine Anlageberatung.</b> Dieser Tab zeigt Beispielportfolios und Rechenmodelle. Er ist keine Anlageberatung, Anlageempfehlung oder Aufforderung zum Kauf oder Verkauf von Finanzinstrumenten und berücksichtigt Ihre Kenntnisse, Erfahrungen, finanzielle Situation und Anlageziele nicht vollständig. Renditen, Kosten und Schwankungen sind Annahmen und nicht garantiert; Produktdaten ohne Gewähr. Vor einem Anlageentscheid sollten Sie sich individuell beraten lassen.</div>
       ${pfCardHtml()}
-      <div class="alt alt-ubs"><div class="alt-h"><b>Alternative A</b> · UBS-Portfolios (CHF, konkrete Produkte)</div><div id="ubs-box"></div></div>
+      <div class="alt alt-ubs"><div class="alt-h"><b>Alternative A</b> · Modellportfolios CHF (Produktbeispiele)</div><div id="ubs-box"></div></div>
       <div class="alt alt-etf"><div class="alt-h"><b>Alternative B</b> · Eigener ETF-Baukasten (neutral, anbieterunabhängig)</div>
       <div class="card"><h2>Eigener ETF-Baukasten nach Risikoprofil</h2>
-        <p class="muted">Vorschlag für eine ETF-Aufteilung des verfügbaren Kapitals. Wählen Sie Ihr Risikoprofil und Schwerpunkte. Kennzahlen aus öffentlichen Angaben der Anbieter (TER); aktuelle Daten bei justETF prüfen. Keine individuelle Anlageberatung. <b>Hinweis:</b> Einzelne Produkte dieses Baukastens sind auf EUR ausgerichtet (z. B. EUR-gesicherte Anleihen, Geldmarkt EUR). Für CHF-Anleger sind die UBS-Portfolios oben die passendere Grundlage.</p>
+        <p class="muted">Beispielaufteilung (Modellrechnung) des verfügbaren Kapitals auf ETFs. Wählen Sie Ihr Risikoprofil und Schwerpunkte. Kennzahlen aus öffentlichen Angaben der Anbieter (TER); aktuelle Daten bei justETF prüfen. Keine individuelle Anlageberatung. <b>Hinweis:</b> Einzelne Produkte dieses Baukastens sind auf EUR ausgerichtet (z. B. EUR-gesicherte Anleihen, Geldmarkt EUR). Für CHF-Anleger sind die Modellportfolios oben (Alternative A) die passendere Grundlage.</p>
         <div class="fgrid">
           ${inp('Risikoprofil', 'inv', null, 'profile', I.profile, { type: 'select', opts: [['auto', `Automatisch (${PROFILES[sugg][0]}, abhängig vom Planungshorizont)`], ...Object.entries(PROFILES).map(([k, v]) => [k, v[0]])] })}
           ${inp('Dividendenfokus (Ausschüttungen für die Entnahme)', 'inv', null, 'div', I.div, { type: 'check' })}
@@ -2957,9 +3242,9 @@ const UBS_PORT = [
     drawChart('c-inv', { type: 'doughnut', data: { labels: etfs.map(e => e.name.split(' UCITS')[0]), datasets: [{ data: wp.map(x => +x.toFixed(1)), backgroundColor: colors, borderWidth: 1 }] }, options: { maintainAspectRatio: false, cutout: '55%', plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${c.label}: ${c.raw} %` } } } } });
   }
 
-  /* ---- UBS-Portfolios (Umsetzungsliste) mit manuell anpassbaren Gewichten ---- */
-  const UBS_NAMES = { D: 'Allwetter Defensiv', C: 'Index Chancenorientiert', K: 'Konsolidiert' };
-  function ubsRows(p) { return UBS_PORT.map((r, i) => ({ ...r, id: i })).filter(r => r.p === p); }
+  /* ---- Modellportfolios (Produktbeispiele) mit manuell anpassbaren Gewichten ---- */
+  const MP_NAMES = { D: 'Allwetter Defensiv', C: 'Index Chancenorientiert', K: 'Konsolidiert' };
+  function ubsRows(p) { return MP_PORT.map((r, i) => ({ ...r, id: i })).filter(r => r.p === p); }
   function ubsW(p, r) { const m = S.inv.ubsW[p]; return m && m[r.id] != null && m[r.id] !== '' ? num(m[r.id]) : r.w; }
   function ubsRender() {
     const box = $('#ubs-box'); if (!box) return;
@@ -2972,8 +3257,8 @@ const UBS_PORT = [
       rows = [...m.values()];
     } else rows = ubsRows(sel).map(r => ({ ...r, w: ubsW(sel, r) }));
     const edit = sel !== 'K';
-    box.innerHTML = `<div class="card"><h2>UBS-Portfolios – Umsetzungsliste</h2>
-      <p class="muted">Zwei Modellportfolios mit konkreten Produkten (SIX, UBS E-Banking). Die Gewichte sind anpassbar; die Summe muss 100 % ergeben. Gewichtungen und Dividenden-Ergänzungen sind ein Vorschlag, keine Anlageberatung. Ticker/ISIN vor dem Kauf im E-Banking prüfen.</p>
+    box.innerHTML = `<div class="card"><h2>Modellportfolios CHF – Produktbeispiele</h2>
+      <p class="muted">Zwei Modellportfolios mit Produktbeispielen (SIX). Die Gewichte sind anpassbar; die Summe muss 100 % ergeben. Gewichtungen und Dividenden-Ergänzungen sind ein Beispiel (Modellrechnung), keine Anlageberatung oder -empfehlung. Ticker/ISIN und Produktdaten sind vor jedem Entscheid selbst zu prüfen.</p>
       <div class="fgrid">
         ${inp('Portfolio', 'inv', null, 'ubsSel', sel, { type: 'select', opts: [['D', 'Allwetter Defensiv'], ['C', 'Index Chancenorientiert'], ['K', 'Konsolidiert (Mischung beider)']] })}
         ${sel === 'K' ? inp('Anteil Allwetter Defensiv', 'inv', null, 'ubsShare', I.ubsShare, { suf: '%', hint: 'Rest = Index Chancenorientiert. Gewichte der Einzelprodukte in den beiden Portfolios anpassen.' }) : ''}
@@ -2985,7 +3270,7 @@ const UBS_PORT = [
       <div class="row between wrap" style="margin-top:10px"><div id="ubs-sum"></div>
         <div class="row gap">${edit ? '<button class="btn sm" data-act="ubs-norm">Auf 100 % normieren</button><button class="btn sm" data-act="ubs-reset">Vorlage wiederherstellen</button>' : ''}</div></div>
       <div class="grid2" style="margin-top:14px"><div><h3>Nach Produkt</h3><div class="chartbox"><canvas id="c-ubs1"></canvas></div></div><div><h3>Nach Anlageklasse</h3><div class="chartbox"><canvas id="c-ubs2"></canvas></div></div></div>
-      <p class="muted small">Vorlage: Excel «UBS Portfolio-Umsetzungsliste» (inkl. Dividenden-ETFs). Die Vorlage Allwetter Defensiv summierte sich ursprünglich auf 102 %, die hinterlegten Gewichte sind bereits auf 100 % korrigiert.</p></div>`;
+      <p class="muted small">Vorlage: Excel-Modellportfolio (inkl. Dividenden-ETFs). Die Vorlage Allwetter Defensiv summierte sich ursprünglich auf 102 %, die hinterlegten Gewichte sind bereits auf 100 % korrigiert.</p></div>`;
     ubsSum(rows, K);
   }
   function ubsSum(rowsIn, KIn) {
@@ -3271,6 +3556,7 @@ const UBS_PORT = [
     const c = document.documentElement.cloneNode(true);
     c.removeAttribute('style'); c.removeAttribute('data-theme');
     c.querySelector('body').removeAttribute('class'); c.querySelector('body').removeAttribute('style');
+    { const bgx = c.querySelector('#bgbar'), hx = c.querySelector('header'); if (bgx && hx && !hx.contains(bgx)) hx.prepend(bgx); const kx = c.querySelector('#kpibar'); if (kx) kx.innerHTML = ''; }
     ['#tabs', '#pages'].forEach(s => { const x = c.querySelector(s); if (x) x.innerHTML = ''; });
     ['#lay-tb', '#lay-rs', '#lay-ghost', '#lay-panel'].forEach(s => { const x = c.querySelector(s); if (x) x.remove(); });
     ['#bg-sel', '#card-sel'].forEach(s => { const x = c.querySelector(s); if (x) x.innerHTML = ''; });
@@ -3303,11 +3589,12 @@ const UBS_PORT = [
     if (!S.entn) S.entn = { sc: 0, target: '', income: '', start: '', ret: 4, infl: 1, years: '', rest: 0 };
     if (!S.inv) S.inv = { profile: 'auto', div: false, esg: false, gold: true };
     if (!S.inv.ubsW) Object.assign(S.inv, { ubsSel: 'D', ubsShare: 65, ubsK: '', ubsW: {} });
-    $('#tabs').innerHTML = TABS.map(([k, l, n, c]) => `<button class="tab" data-t="${k}" style="--c:${c}"><i>${n}</i><span>${l}</span></button>`).join('');
+    wrapContent(); buildNav(); themeInit(); chartStyle();
     $('#pages').innerHTML = TABS.map(([k]) => `<section class="page" id="p-${k}"></section>`).join('');
     $('#tabs').addEventListener('click', e => { const b = e.target.closest('.tab'); if (b) showTab(b.dataset.t); });
-    let t = 'budget'; try { t = sessionStorage.getItem('rp_tab') || 'budget'; } catch (e) { }
-    showTab(TABS.some(x => x[0] === t) ? t : 'budget');
+    observePages(); discInit();
+    let t = 'start'; try { t = sessionStorage.getItem('rp_tab') || 'start'; } catch (e) { }
+    showTab(TABS.some(x => x[0] === t) ? t : 'start'); kpiUpdate();
   }
   /* ---------- Layout: Sektionen verschieben, skalieren, ein-/ausblenden (je Tab gespeichert) ---------- */
   const LAY = (() => {
@@ -3484,7 +3771,7 @@ const UBS_PORT = [
   /* ---------- Seitenhintergrund und Sektionen (Karten) wählbar ---------- */
   const BGS = [['auto', 'Automatisch (System)', ''], ['warm', 'Warmweiss', '#f5f4ef'], ['white', 'Weiss', '#ffffff'], ['grey', 'Hellgrau', '#e9eaec'], ['blue', 'Hellblau', '#e6eef7'], ['green', 'Hellgrün', '#e7f1ea'], ['sand', 'Sand', '#f3ead8'], ['dgrey', 'Dunkelgrau', '#2b2b28'], ['black', 'Schwarz', '#171715'], ['custom', 'Eigene Farbe …', '']];
   const CARDS = [['auto', 'Automatisch (System)', ''], ['white', 'Weiss', '#ffffff'], ['grey', 'Hellgrau', '#f1f1ef'], ['blue', 'Hellblau', '#eef4fb'], ['green', 'Hellgrün', '#eef6f0'], ['sand', 'Sand', '#f8f1e2'], ['dgrey', 'Dunkelgrau', '#2b2b28'], ['dark', 'Dunkel', '#222220'], ['custom', 'Eigene Farbe …', '']];
-  const sysDark = () => matchMedia('(prefers-color-scheme: dark)').matches;
+  const sysDark = () => isDark();
   const hexRGB = c => { const n = parseInt(c.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
   const lumOf = c => { const [r, g, b] = hexRGB(c); return (0.299 * r + 0.587 * g + 0.114 * b) / 255; };
   const mixHex = (c, t, p) => { const x = hexRGB(c), y = hexRGB(t); return '#' + x.map((v, k) => Math.round(v + (y[k] - v) * p).toString(16).padStart(2, '0')).join(''); };
