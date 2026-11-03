@@ -324,19 +324,42 @@ input:disabled{background:var(--surface2);color:var(--muted)}
 a[data-disc]{cursor:pointer;color:var(--accent);text-decoration:underline}
 @media print{#disc{display:none!important}}
 
-/* Variante C: Positionen als Karten statt breiter Tabelle (kein Querscrollen) */
-.pcrows{display:grid;gap:10px}
-.pcrow{border:1px solid var(--border);border-radius:14px;padding:12px 14px;background:var(--surface)}
-.pc-main{display:grid;grid-template-columns:minmax(150px,175px) minmax(0,1fr) minmax(130px,165px) minmax(96px,110px) minmax(104px,130px) 32px;gap:10px 12px;align-items:start}
-.pc-sub{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px 12px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);align-items:start}
-.pc-f label,.pc-ro>span{display:block;font-size:11.5px;font-weight:600;color:var(--muted);margin-bottom:3px;line-height:1.25}
-.pc-f small{display:block;margin-top:3px;font-size:11.5px}
-.pc-ro b{display:block;font-size:15px;font-variant-numeric:tabular-nums;line-height:1.3;padding-top:5px}.pc-ro small{display:block;color:var(--muted);font-size:11.5px;margin-top:1px}
-.pc-amtv{padding-top:8px;font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap}
-.pc-main .x{margin-top:22px}
+/* Variante C: ruhige Positionsliste (eine Kopfzeile, eine Zeile je Position, Nebenangaben darunter) */
+.pcrows{container:pc/inline-size;display:block;margin-top:6px}
+.pc-head,.pc-main{display:grid;grid-template-columns:minmax(138px,176px) minmax(110px,1fr) minmax(120px,158px) minmax(88px,104px) minmax(100px,132px) 26px;gap:10px 12px;align-items:center}
+.pc-head{padding:8px 0;font-size:11.5px;font-weight:650;color:var(--muted);letter-spacing:.02em;border-bottom:1px solid var(--border)}
+.pcrow{padding:14px 0 12px;border-bottom:1px solid color-mix(in srgb,var(--border) 75%,transparent)}
+.pcrow:last-child{border-bottom:0}
+.pc-isin{position:relative}.pc-isin input{padding-right:32px}
+.pc-ok,.pc-bad{position:absolute;right:9px;top:50%;transform:translateY(-50%);width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:800;text-decoration:none;line-height:1}
+.pc-ok{background:color-mix(in srgb,var(--pos) 18%,var(--surface));color:var(--pos)}.pc-bad{background:color-mix(in srgb,var(--neg) 18%,var(--surface));color:var(--neg)}
+.pc-amtv{font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap}.pc-amtv .suf{margin-left:5px;font-weight:500}
+.pc-main .x{justify-self:end}
 .pcin{min-width:0!important}
-@media (max-width:1180px){.pc-main{grid-template-columns:minmax(140px,1fr) minmax(0,1.6fr) minmax(130px,1fr) minmax(96px,.6fr)}.pc-amtv{padding-top:8px}.pc-main .x{grid-column:4;justify-self:end;margin-top:0;grid-row:2}.pc-main>.pc-f:nth-child(5){grid-row:2;grid-column:1}.pc-sub{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (max-width:640px){.pc-main{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.pc-main>.pc-f:nth-child(2){grid-column:1/-1}.pc-main>.pc-f:nth-child(1){grid-column:1/-1}.pc-main .x{grid-column:2;grid-row:auto}.pc-main>.pc-f:nth-child(5){grid-row:auto;grid-column:auto}}
+.pc-meta{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px 24px;margin-top:9px;font-size:12.5px;color:var(--muted)}.pc-meta>*{min-width:0}
+.pc-info{line-height:1.6}.pc-info b{color:var(--text);font-weight:650}.pc-info b.pc-ref{color:var(--accent)}.pc-dim{opacity:.85}.pc-sep{margin:0 8px;opacity:.5}
+.pc-opt{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:flex-end}.pc-opt label{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);white-space:nowrap}
+.pc-opt input{width:70px;padding:5px 8px;font-size:13px;border-radius:8px}
+@container pc (max-width:860px){
+  .pc-head{display:none}
+  .pc-main{grid-template-columns:minmax(150px,180px) repeat(3,minmax(0,1fr)) 28px;gap:10px 12px;align-items:start}
+  .pc-main>.pc-c::before{content:attr(data-l);display:block;font-size:11.5px;font-weight:600;color:var(--muted);margin-bottom:3px}
+  .pc-main>.pc-c:nth-child(1){grid-column:1;grid-row:1}
+  .pc-main>.pc-c:nth-child(2){grid-column:2/-1;grid-row:1}
+  .pc-main>.pc-c:nth-child(3){grid-column:1;grid-row:2}
+  .pc-main>.pc-c:nth-child(4){grid-column:2;grid-row:2}
+  .pc-main>.pc-c:nth-child(5){grid-column:3;grid-row:2}
+  .pc-main .x{grid-column:5;grid-row:2;justify-self:end;align-self:start;margin-top:21px}
+  .pc-amtv>span{position:relative;top:9px}
+  .pc-ok,.pc-bad{top:auto;bottom:9px;transform:none}
+}
+@container pc (max-width:560px){
+  .pc-main{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .pc-main>.pc-c:nth-child(n){grid-column:auto;grid-row:auto}
+  .pc-main>.pc-c:nth-child(1),.pc-main>.pc-c:nth-child(2){grid-column:1/-1}
+  .pc-main .x{grid-column:2;grid-row:auto}
+  .pc-meta{grid-template-columns:minmax(0,1fr)}.pc-opt{justify-content:flex-start}
+}
 </style></head>
 <body>
 <header><div id="bgbar"><label>Seitenhintergrund <select id="bg-sel"></select></label><input type="color" id="bg-col" value="#f5f4ef" title="Eigene Farbe" hidden><button type="button" id="lay-btn" class="btn sm">Layout bearbeiten</button><label>Sektionen <select id="card-sel"></select></label><input type="color" id="card-col" value="#ffffff" title="Eigene Farbe" hidden></div><h1>Rentenplanung Schweiz</h1>
@@ -2745,21 +2768,18 @@ const MP_PORT = [
     box.innerHTML = `<div class="card"><h2>Eigenes Portfolio – ISIN erfassen</h2>
       <p class="muted">Erfassen Sie Ihre eigenen Anlagen (ETF, Fonds, Obligationen, Aktien) mit ISIN, Anlageklasse und Gewicht. Bekannte ISINs aus den Vorlagen A und B ergänzen Name, Klasse und Kosten automatisch. Rendite und Kosten pro Position sind optional; leer = Annahme der Anlageklasse. Wählen Sie oben «C», damit dieses Portfolio in den Berechnungen gilt.</p>
       <div class="fgrid">${inp('Anlagebetrag', 'inv', null, 'cK', I.cK, { suf: 'CHF', ph: f0(K), hint: 'leer = Startkapital wie im Entnahmeplan (Tab 7)' })}</div>
-      ${rows.length ? `<div id="pc-body" class="pcrows">${rows.map(r => { const a = pfAs(r.cls), isin = String(r.isin || '').trim(), ok = isin && isinOk(isin), pr = pfRef(r);
+      ${rows.length ? `<div id="pc-body" class="pcrows"><div class="pc-head"><span>ISIN</span><span>Bezeichnung</span><span>Anlageklasse</span><span>Gewicht</span><span>Betrag</span><span></span></div>${rows.map(r => { const a = pfAs(r.cls), isin = String(r.isin || '').trim(), ok = isin && isinOk(isin), pr = pfRef(r);
+        const chk = !isin ? '' : ok ? `<a class="pc-ok" href="https://www.justetf.com/de/etf-profile.html?isin=${encodeURIComponent(isin)}" target="_blank" rel="noopener" title="ISIN gültig. Auf justETF öffnen">✓</a>` : '<span class="pc-bad" title="Format oder Prüfziffer ungültig">!</span>';
+        const info = pr ? `Historie CHF <b>${pfFmt(pr.h.since)} %</b> seit Auflage (${pr.h.from}), <b>${pfFmt(pr.h.c5)} %</b> über 5 Jahre <span class="pc-dim">· ${esc(pr.h.basis)}</span><span class="pc-sep">·</span><span title="${esc('Anker ' + pfFmt(pr.mu0) + ' % (' + (pr.h.anchorTxt || 'Klassenannahme') + '), Historie arithmetisch ' + pfFmt(pr.hArith) + ' % mit Gewicht ' + Math.round(pr.wH * 100) + ' %')}">Referenz erwartet <b class="pc-ref">${pfFmt(pr.ref)} %</b> brutto</span>` : `<span class="pc-dim">Keine Historie hinterlegt</span><span class="pc-sep">·</span>Referenz = Klassenannahme <b class="pc-ref">${pfFmt(a.gross)} %</b>`;
         return `<div class="pcrow"><div class="pc-main">
-          <div class="pc-f"><label>ISIN</label><input type="text" class="pcin isin" maxlength="12" value="${esc(r.isin)}" data-pc="${r.id}" data-f="isin" placeholder="IE00B4L5Y983">
-            <small>${!isin ? '' : ok ? `<a href="https://www.justetf.com/de/etf-profile.html?isin=${encodeURIComponent(isin)}" target="_blank" rel="noopener">✔ ISIN gültig · justETF</a>` : '<span class="flag">⚠ Format/Prüfziffer ungültig</span>'}</small></div>
-          <div class="pc-f"><label>Bezeichnung</label><input type="text" class="pcin" value="${esc(r.name)}" data-pc="${r.id}" data-f="name" placeholder="Bezeichnung"></div>
-          <div class="pc-f"><label>Anlageklasse</label><select data-pc="${r.id}" data-f="cls">${Object.keys(PF_CLS).map(c => `<option value="${c}" ${r.cls === c ? 'selected' : ''}>${esc(PF_CLS[c])}</option>`).join('')}</select></div>
-          <div class="pc-f"><label>Gewicht</label><div class="ctl"><input type="number" step="0.5" min="0" class="pcin" value="${esc(r.w)}" data-pc="${r.id}" data-f="w"><span class="suf">%</span></div></div>
-          <div class="pc-f"><label>Betrag</label><div class="pc-amtv"><span class="amt pc-amt" data-id="${r.id}">${f0(K * num(r.w) / 100)}</span> <span class="suf">CHF</span></div></div>
+          <div class="pc-c pc-isin" data-l="ISIN"><input type="text" class="pcin isin" maxlength="12" value="${esc(r.isin)}" data-pc="${r.id}" data-f="isin" placeholder="IE00B4L5Y983">${chk}</div>
+          <div class="pc-c" data-l="Bezeichnung"><input type="text" class="pcin" value="${esc(r.name)}" data-pc="${r.id}" data-f="name" placeholder="Bezeichnung"></div>
+          <div class="pc-c" data-l="Anlageklasse"><select data-pc="${r.id}" data-f="cls">${Object.keys(PF_CLS).map(c => `<option value="${c}" ${r.cls === c ? 'selected' : ''}>${esc(PF_CLS[c])}</option>`).join('')}</select></div>
+          <div class="pc-c" data-l="Gewicht"><div class="ctl"><input type="number" step="0.5" min="0" class="pcin" value="${esc(r.w)}" data-pc="${r.id}" data-f="w"><span class="suf">%</span></div></div>
+          <div class="pc-c pc-amtv" data-l="Betrag"><span class="amt pc-amt" data-id="${r.id}">${f0(K * num(r.w) / 100)}</span><span class="suf">CHF</span></div>
           <button class="x" title="Position löschen" data-act="pc-del" data-id="${r.id}">×</button></div>
-          <div class="pc-sub">
-            <div class="pc-ro"><span>Historie CHF p. a. (seit Auflage / 5 J.)</span>${pr ? `<b>${pfFmt(pr.h.since)} % / ${pfFmt(pr.h.c5)} %</b><small>seit ${pr.h.from} · ${esc(pr.h.basis)}</small>` : '<b class="muted">keine Daten</b>'}</div>
-            <div class="pc-ro" title="${pr ? esc('Anker ' + pfFmt(pr.mu0) + ' % (' + (pr.h.anchorTxt || 'Klassenannahme') + '), Historie arithmetisch ' + pfFmt(pr.hArith) + ' % mit Gewicht ' + Math.round(pr.wH * 100) + ' %') : ''}"><span>Referenz erwartet (brutto p. a.)</span>${pr ? `<b>${pfFmt(pr.ref)} %</b><small>Historie ${Math.round(pr.wH * 100)} % gewichtet</small>` : `<b class="muted">${pfFmt(a.gross)} % (Klasse)</b>`}</div>
-            <div class="pc-f"><label>Rendite brutto (optional)</label><div class="ctl"><input type="number" step="0.1" class="pcin" value="${esc(r.ret)}" placeholder="${a.gross}" data-pc="${r.id}" data-f="ret"><span class="suf">%</span></div></div>
-            <div class="pc-f"><label>TER (optional)</label><div class="ctl"><input type="number" step="0.01" min="0" class="pcin" value="${esc(r.ter)}" placeholder="${a.ter}" data-pc="${r.id}" data-f="ter"><span class="suf">%</span></div></div>
-          </div></div>`; }).join('')}</div>` : `<div id="pc-body" class="muted">Noch keine Positionen. Mit «+ Position» starten oder eine Vorlage übernehmen.</div>`}
+          <div class="pc-meta"><div class="pc-info">${info}</div>
+            <div class="pc-opt"><label>Eigene Rendite brutto<input type="number" step="0.1" class="pcin" value="${esc(r.ret)}" placeholder="${a.gross}" data-pc="${r.id}" data-f="ret"><span class="suf">%</span></label><label>TER<input type="number" step="0.01" min="0" class="pcin" value="${esc(r.ter)}" placeholder="${a.ter}" data-pc="${r.id}" data-f="ter"><span class="suf">%</span></label></div></div></div>`; }).join('')}</div>` : `<div id="pc-body" class="muted">Noch keine Positionen. Mit «+ Position» starten oder eine Vorlage übernehmen.</div>`}
       <div class="row between wrap" style="margin-top:10px"><div id="pc-sum"></div>
         <div class="row gap wrap"><button class="btn sm pri" data-act="pc-add">+ Position</button><button class="btn sm" data-act="pc-norm">Auf 100 % normieren</button><button class="btn sm" data-act="pc-copyA">Aus Portfolio A übernehmen</button><button class="btn sm" data-act="pc-copyB">Aus Portfolio B übernehmen</button><button class="btn sm" data-act="pc-applyref" title="Schreibt den Referenzwert in «Rendite brutto» der Positionen mit Daten">Referenz als Rendite übernehmen</button><button class="btn sm" data-act="pc-resetret" title="Leert «Rendite brutto» aller Positionen; es gilt wieder die Klassenannahme">Eigene Renditen leeren</button><button class="btn sm" data-act="pc-clear">Alle löschen</button></div></div>
       <div class="grid2" style="margin-top:14px"><div><h3>Nach Position</h3><div class="chartbox"><canvas id="c-pc1"></canvas></div></div><div><h3>Nach Anlageklasse</h3><div class="chartbox"><canvas id="c-pc2"></canvas></div></div></div>
