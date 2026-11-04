@@ -1563,12 +1563,12 @@ const MP_PORT = [
       <div class="card"><h2>Persönliche Angaben</h2>
         <div class="fgrid">
           ${inp('Name / Bezeichnung (optional)', 'profile', null, 'name', P.name, { type: 'text' })}
-          ${inp('Geburtsmonat Person 1 (optional)', 'profile', null, 'birth1', fmtYM(P.birth1), { type: 'text', ph: 'MM.JJJJ', max: 7, hint: 'Monat und Jahr, z. B. 05.1965; setzt das Alter automatisch.' })}
+          ${inp('Geburtsmonat Person 1 (optional)', 'profile', null, 'birth1', fmtYM(P.birth1), { type: 'text', ph: '__ / ____', max: 9, hint: 'Monat und Jahr, z. B. 05 / 1965; setzt das Alter automatisch.' })}
           ${inp('Alter heute (Hauptperson)', 'profile', null, 'age', P.age, { suf: 'Jahre', dis: E.ymOk(P.birth1) })}
           ${inp('Pensionierungsalter', 'profile', null, 'retireAge', P.retireAge, { suf: 'Jahre' })}
           ${inp('Planungshorizont bis Alter', 'profile', null, 'lifeAge', P.lifeAge, { suf: 'Jahre', hint: 'Kapital soll bis dahin reichen' })}
           ${inp('Zivilstand', 'profile', null, 'civil', P.civil, { type: 'select', opts: [['single', 'Alleinstehend / ledig / geschieden / verwitwet'], ['married', 'Verheiratet'], ['divorcing', 'In Scheidung (wird wie alleinstehend gerechnet)'], ['partnership', 'Eingetragene Partnerschaft'], ['concubinage', 'Konkubinat (getrennt veranlagt)']], hint: P.civil === 'divorcing' ? 'Steuern und AHV werden wie bei Alleinstehenden gerechnet. Tragen Sie die PK nach der Teilung ein und erfassen Sie erwartete Auszahlungen unter «Vermögen» als «Auszahlung in Folge Scheidung».' : undefined })}
-          ${inp('Geburtsmonat Person 2 (optional)', 'profile', null, 'birth2', fmtYM(P.birth2), { type: 'text', ph: 'MM.JJJJ', max: 7, hint: 'Monat und Jahr, z. B. 02.1971; bestimmt den AHV-Beginn von Person 2.' })}
+          ${inp('Geburtsmonat Person 2 (optional)', 'profile', null, 'birth2', fmtYM(P.birth2), { type: 'text', ph: '__ / ____', max: 9, hint: 'Monat und Jahr, z. B. 02 / 1971; bestimmt den AHV-Beginn von Person 2.' })}
           ${inp('Alter Partner/in (optional)', 'profile', null, 'partnerAge', P.partnerAge, { suf: 'Jahre', dis: E.ymOk(P.birth2) })}
           ${inp('Konfession (Kirchensteuer)', 'profile', null, 'confession', P.confession, { type: 'select', opts: [['none', 'Keine / andere'], ['ref', 'Reformiert'], ['rk', 'Römisch-katholisch'], ['ck', 'Christkatholisch']] })}
         </div></div>
@@ -1748,7 +1748,7 @@ const MP_PORT = [
           ${inp('AHV-Altersrente Person 1', 'pension', null, 'ahv1', A.ahv1, { suf: 'CHF / Monat', hint: `Maximalrente aktuell ${f0(G.ahvMax)} / Monat (13 Auszahlungen). Genaue Rente via Rentenvorausberechnung (ahv-iv.ch).` })}
           ${married ? inp('AHV Person 2: Betrag bis zur Ehepaarrente', 'pension', null, 'ahv2', A.ahv2, { suf: 'CHF / Monat', hint: 'Betrag, der zu Ihrer Rente hinzukommt (Summe auf 150 % der Maximalrente plafoniert). Beispiel: 1\u2019350 für den Teilanteil bis zur Ehepaarrente.' }) : ''}
           ${married ? inp('AHV-Alter Person 2', 'pension', null, 'ahv2Age', A.ahv2Age === undefined || A.ahv2Age === '' ? 65 : A.ahv2Age, { suf: 'Jahre', hint: 'Referenzalter 65; bestimmt zusammen mit dem Geburtsmonat den Beginn.' }) : ''}
-          ${married ? inp('Beginn AHV Person 2 manuell (optional)', 'pension', null, 'ahv2Start', fmtYM(A.ahv2Start), { type: 'text', ph: 'MM.JJJJ', max: 7, hint: 'Monat und Jahr, z. B. 03.2036. Überschreibt die automatische Berechnung.' }) : ''}
+          ${married ? inp('Beginn AHV Person 2 manuell (optional)', 'pension', null, 'ahv2Start', fmtYM(A.ahv2Start), { type: 'text', ph: '__ / ____', max: 9, hint: 'Monat und Jahr, z. B. 03 / 2036. Überschreibt die automatische Berechnung.' }) : ''}
         </div><div id="v-sum" class="note"></div></div>
       <div class="card"><div class="row between wrap"><h2>Weitere Einkünfte</h2><button class="btn pri" data-act="inc-add">+ Hinzufügen</button></div>
         <p class="muted">Z. B. Nebenerwerb, Leibrenten, Lebensversicherungsrenten, Erträge aus Anwartschaften/Beteiligungen. Mieteinnahmen erfassen Sie direkt bei der Liegenschaft. <b>Pensionskassenrenten</b> stammen aus den PK-Positionen unter «Vermögen».</p>
@@ -3003,7 +3003,14 @@ const MP_PORT = [
     if (mo < 1 || mo > 12 || y < 1900 || y > 2100) return null;
     return y + '-' + String(mo).padStart(2, '0');
   }
-  const fmtYM = v => (E.ymOk(v) ? v.slice(5, 7) + '.' + v.slice(0, 4) : '');
+  const fmtYM = v => (E.ymOk(v) ? v.slice(5, 7) + ' / ' + v.slice(0, 4) : '');
+  // Eingabemaske «MM / JJJJ»: Ziffern, automatischer Sprung zum Jahr nach dem Monat
+  function maskYM(el, e) {
+    let d = el.value.replace(/\D/g, '').slice(0, 6); const ins = !!(e && e.inputType && e.inputType.indexOf('insert') === 0);
+    if (d.length === 1 && +d > 1 && ins) d = '0' + d;
+    el.value = d.slice(0, 2) + (d.length > 2 || (d.length === 2 && ins) ? ' / ' + d.slice(2) : '');
+    el.style.borderColor = ''; el.title = '';
+  }
   /* ---- Zeitverlauf der festen Einkünfte (AHV Person 2, Ab/Bis-Alter) ---- */
   function syncBirth() {
     const P = S.profile;
@@ -3669,7 +3676,7 @@ const MP_PORT = [
   }
   document.addEventListener('input', e => {
     const el = e.target;
-    if (el.dataset.k && YM_KEYS.includes(el.dataset.k) && el.tagName === 'INPUT') return;
+    if (el.dataset.k && YM_KEYS.includes(el.dataset.k) && el.tagName === 'INPUT') { maskYM(el, e); return; }
     if (el.dataset.mix) { mixApply(parseInt(el.dataset.mix, 10), el.dataset.f, parseFloat(el.value)); return; }
     if (el.dataset.koName) { const c = S.combos.find(x => x.id === parseInt(el.dataset.koName, 10)); if (c) { c.name = el.value; save(); koOut(); } return; }
     if (el.id === 'gf-text') { S.goalFree = { text: el.value }; save(); gfPreview(); return; }
@@ -3708,7 +3715,7 @@ const MP_PORT = [
     }
     if (el.dataset.s && el.tagName === 'INPUT' && YM_KEYS.includes(el.dataset.k)) {
       const raw = el.value.trim(), v = parseYM(raw);
-      if (raw !== '' && v == null) { el.style.borderColor = '#d33'; el.title = 'Bitte Monat und Jahr eingeben, z. B. 05.1965'; return; }
+      if (raw !== '' && v == null) { el.style.borderColor = '#d33'; el.title = 'Bitte Monat und Jahr eingeben, z. B. 05 / 1965'; return; }
       const tgt = S[el.dataset.s]; if (!tgt) return;
       tgt[el.dataset.k] = v || ''; syncBirth(); save(); renderPage(curTab); return;
     }
