@@ -321,7 +321,7 @@ input:disabled{background:var(--surface2);color:var(--muted)}
 .disc-box{background:var(--surface);color:var(--text);border-radius:18px;max-width:740px;width:100%;max-height:90vh;overflow:auto;padding:24px 28px;box-shadow:0 24px 60px rgba(0,0,0,.35);border:1px solid var(--border)}
 .disc-box h2{font-size:20px;margin:0 0 6px}.disc-txt{font-size:13.8px;line-height:1.55}.disc-txt h3{margin:14px 0 3px;font-size:14px}.disc-txt p{margin:0 0 4px}
 .disc-key{margin:10px 0;padding:11px 14px;border-radius:12px;background:var(--warnbg);color:var(--warnfg);font-weight:600}
-a[data-disc]{cursor:pointer;color:var(--accent);text-decoration:underline}
+a[data-disc]{cursor:pointer;color:var(--ptext,var(--accent));text-decoration:underline}
 @media print{#disc{display:none!important}}
 
 /* Variante C: ruhige Positionsliste (eine Kopfzeile, eine Zeile je Position, Nebenangaben darunter) */
@@ -360,6 +360,10 @@ a[data-disc]{cursor:pointer;color:var(--accent);text-decoration:underline}
   .pc-main .x{grid-column:2;grid-row:auto}
   .pc-meta{grid-template-columns:minmax(0,1fr)}.pc-opt{justify-content:flex-start}
 }
+
+/* Management Report: immer helles Papier – unabhängig von Dunkel-/Farbdesign der App (Kontrast) */
+.rp-doc{--surface:#fff;--surface2:#f4f5f8;--text:#1f1e1b;--muted:#5a5a55;--border:#d9d9d2;--accent:#185FA5;--accent-fg:#fff;--accent-soft:#e8eefc;--pos:#16703f;--neg:#b3261e;--warnbg:#fff4d6;--warnfg:#6b4a00;--shadow:none;color-scheme:light;background:#fff;color:#1f1e1b}
+.rp-doc .muted,.rp-doc small{color:#55554f}
 </style></head>
 <body>
 <header><div id="bgbar"><label>Seitenhintergrund <select id="bg-sel"></select></label><input type="color" id="bg-col" value="#f5f4ef" title="Eigene Farbe" hidden><button type="button" id="lay-btn" class="btn sm">Layout bearbeiten</button><label>Sektionen <select id="card-sel"></select></label><input type="color" id="card-col" value="#ffffff" title="Eigene Farbe" hidden></div><h1>Rentenplanung Schweiz</h1>
@@ -2012,7 +2016,7 @@ const MP_PORT = [
     afterDatasetsDraw(ch) {
       if (!ch._rp) return;
       const ctx = ch.ctx, fm = v => Math.abs(v) >= 1e6 ? (v / 1e6).toFixed(2) + ' Mio' : f0(v), fk = v => Math.abs(v) >= 1000 ? f0(Math.round(v / 1000)) + 'k' : f0(v);
-      const put = (t, x, y, col, al, bs) => { ctx.font = '700 ' + (bs || 14) + 'px system-ui,-apple-system,Segoe UI,sans-serif'; ctx.textAlign = al || 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(255,255,255,.92)'; ctx.strokeText(t, x, y); ctx.fillStyle = col; ctx.fillText(t, x, y); };
+      const put = (t, x, y, col, al, bs) => { ctx.font = '700 ' + (bs || 14) + 'px system-ui,-apple-system,Segoe UI,sans-serif'; ctx.textAlign = al || 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(255,255,255,.92)'; if (/^#[0-9a-f]{6}$/i.test(col)) col = ensure(col, '#ffffff', 4.5); if ((al || 'center') === 'center') { const w = ctx.measureText(t).width; x = Math.min(ch.width - w / 2 - 2, Math.max(w / 2 + 2, x)); } ctx.strokeText(t, x, y); ctx.fillStyle = col; ctx.fillText(t, x, y); };
       ctx.save();
       const horiz = ch.options.indexAxis === 'y', nds = ch.data.datasets.length;
       ch.data.datasets.forEach((ds, di) => {
@@ -4035,7 +4039,7 @@ const MP_PORT = [
       r.setProperty('--text', t);
       r.setProperty('--muted', ensure(mixHex(t, cd, 0.3), s2, 4.5));          // auch auf den leicht abgesetzten Flächen lesbar
       const acc = ensure(light ? '#185FA5' : '#5aa2e6', s2, 4.5);
-      r.setProperty('--accent', acc); r.setProperty('--accent-fg', textOn(acc));
+      r.setProperty('--accent', acc); r.setProperty('--accent-fg', textOn(acc)); r.setProperty('--accent-soft', mixHex(cd, acc, light ? 0.10 : 0.08));
       r.setProperty('--pos', ensure(light ? '#1b7f4b' : '#4fc58a', s2, 4.5)); r.setProperty('--neg', ensure(light ? '#c0392b' : '#ef7b6e', s2, 4.5));
       r.setProperty('--warnbg', light ? '#fff4d6' : '#3a3015'); r.setProperty('--warnfg', light ? '#6b4a00' : '#f0d68a');
     }
