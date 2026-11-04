@@ -548,14 +548,114 @@ const Engine = (function () {
   };
 
   /* ---------- AHV ---------- */
-  E.ahvYearly = function (S) {
+  // Zeitachse: Alter aus Geburtsmonat (YYYY-MM) oder Altersfeld; Beginn der AHV von Person 2 relativ zur Pensionierung von Person 1
+  E.ymOk = v => typeof v === 'string' && /^\d{4}-\d{2}$/.test(v);
+  E.ageFrom = function (b, fb) {
+    if (E.ymOk(b)) { const n = new Date(); return (n.getFullYear() - +b.slice(0, 4)) + (n.getMonth() - (+b.slice(5, 7) - 1)) / 12; }
+    return fb === '' || fb == null ? null : num(fb);
+  };
+  E.timing = function (S) {
+    const p = S.profile, a = S.pension || {}, n = new Date();
+    const married = p.civil === 'married' || p.civil === 'partnership';
+    const a1 = E.ageFrom(p.birth1, p.age), a2 = E.ageFrom(p.birth2, p.partnerAge), r = num(p.retireAge);
+    const nowAbs = n.getFullYear() + n.getMonth() / 12, retAbs = nowAbs + (a1 == null ? 0 : r - a1);
+    const aa = a.ahv2Age === '' || a.ahv2Age == null ? 65 : num(a.ahv2Age);
+    let t2 = 0, how = 'ret';
+    if (married) {
+      if (E.ymOk(a.ahv2Start)) { t2 = (+a.ahv2Start.slice(0, 4) + (+a.ahv2Start.slice(5, 7) - 1) / 12) - retAbs; how = 'date'; }
+      else if (a1 != null && a2 != null) { t2 = (aa - a2) - (r - a1); how = E.ymOk(p.birth2) ? 'birth' : 'age'; }
+    }
+    t2 = Math.max(0, Math.round(t2 * 12) / 12);
+    return { t2, retAbs, how, aa };
+  };
+  E.dateLabel = function (S, t) {
+    const tm = E.timing(S), x = Math.round((tm.retAbs + t) * 12) / 12, y = Math.floor(x + 1e-9), m = Math.round((x - y) * 12) % 12;
+    return ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'][m] + ' ' + y;
+  };
+  // full = AHV im Vollbezug beider Personen; sonst AHV zum Zeitpunkt der Pensionierung von Person 1
+  E.ahvYearly = function (S, full) {
     const g = S.settings, p = S.profile, a = S.pension;
     const max = num(g.ahvMax) * 13;
     const p1 = Math.min(num(a.ahv1), num(g.ahvMax)) * 13;
     if (p.civil !== 'married' && p.civil !== 'partnership') return p1;
+    if (!full && E.timing(S).t2 > 0) return p1;
     const p2 = Math.min(num(a.ahv2), num(g.ahvMax)) * 13;
     return Math.min(p1 + p2, max * 1.5);
   };
+  // Veränderung der festen Monatseinkünfte gegenüber dem Pensionierungszeitpunkt, je Entnahmejahr (CHF / Monat, heutige Kaufkraft)
+  E.incomeDelta = function (S, sc, years) {
+    const r = num(S.profile.retireAge), tm = E.timing(S), dA = (E.ahvYearly(S, true) - E.ahvYearly(S)) / 12, D = new Array(years).fill(0);
+    const incs = (S.incomes || []).filter(i => !(sc && sc.incomeOff && sc.incomeOff.includes(i.id)));
+    for (let t = 0; t < years; t++) {
+      let d = dA ? dA * Math.max(0, Math.min(1, t + 1 - tm.t2)) : 0;
+      for (const i of incs) {
+        const from = num(i.fromAge, 0), to = (i.toAge === '' || i.toAge == null) ? Infinity : num(i.toAge);
+        const base = (from <= r && to >= r) ? 1 : 0, lo = r + t;
+        const frac = Math.max(0, Math.min(lo + 1, to) - Math.max(lo, from));
+        d += num(i.amount) / 12 * (frac - base);
+      }
+      D[t] = d;
+    }
+    return D;
+  };
+  // Grundstückgewinnsteuer: Richtsatz in % des steuerbaren Gewinns bei langer Haltedauer (Tiefsttarif). [Satz, Quelle: 1 = kantonaler Tarif, 0 = Näherung]
+  E.GGST = {
+    AG: [5, 1], TI: [4, 1], UR: [11, 1], NW: [12, 1], BS: [12, 1], VD: [7, 1], FR: [10, 1], GE: [2, 1],
+    ZH: [19, 0], BE: [7, 0], LU: [15, 0], SZ: [9, 0], OW: [11, 0], GL: [3, 0], ZG: [10, 0], SO: [10, 0], BL: [22, 0], SH: [8, 0],
+    AR: [15, 0], AI: [20, 0], SG: [8, 0], GR: [12, 0], TG: [11, 0], VS: [12, 0], NE: [16, 0], JU: [5, 0]
+  };
+  E.ggstRate = c => (E.GGST[c] || [15, 0])[0];
+  // Späterer Verkauf von Liegenschaften (nach der Pensionierung): Erlös, Steuern, entfallende Kosten, neue Wohnkosten, wegfallende Mieten
+  E.sales = function (S, sc, r, years) {
+    const P = S.profile, ret = num(P.retireAge), yrs = Math.max(0, ret - num(P.age)), life = num(P.lifeAge);
+    const out = { lumps: [], dB: new Array(years).fill(0), dInc: new Array(years).fill(0), ev: [], warn: [] };
+    const immos = S.assets.filter(a => a.type === 'immo'), sold0 = new Set((sc && sc.sell) || []);
+    const saleOf = a => (a.saleAge === '' || a.saleAge == null || sold0.has(a.id)) ? null : num(a.saleAge);
+    const firstOwn = immos.find(x => x.use === 'own');
+    const isMain = a => a.use === 'own' && (a.home === 'main' || ((a.home == null || a.home === '') && a === firstOwn));
+    const mains = immos.filter(isMain), amoShare = r && r.hypoTotal > 0 ? num(r.amo) / r.hypoTotal : 0;
+    immos.forEach(a => {
+      const s = saleOf(a); if (s == null) return;
+      const nm = a.name || 'Liegenschaft';
+      if (s < ret) { out.warn.push(`${nm}: Verkauf vor der Pensionierung (Alter ${s}) wird hier nicht gerechnet. Bitte im Tab «Szenarien» «verkaufen» wählen.`); return; }
+      if (s >= life) { out.warn.push(`${nm}: Verkauf nach dem Planungshorizont (Alter ${s}) ist nicht berücksichtigt.`); return; }
+      const t = s - ret, tIdx = Math.floor(t + 1e-9); if (tIdx >= years) return;
+      const unl = d => d.immoId === '' || d.immoId == null, debts = S.debts.filter(d => d.type === 'hypo' && (String(d.immoId) === String(a.id) || (unl(d) && immos.length === 1)));
+      if (immos.length > 1 && S.debts.some(d => d.type === 'hypo' && unl(d) && num(d.amount) > 0)) out.warn.push('Mindestens eine Hypothek ist keiner Liegenschaft zugeordnet (Tab Kredite). Sie bleibt nach dem Verkauf bestehen und wird nicht zurückbezahlt.');
+      const rem = debts.reduce((x, d) => x + num(d.amount), 0) * (1 - amoShare), intY = debts.reduce((x, d) => x + num(d.amount) * num(d.rate) / 100, 0) * (1 - amoShare);
+      const V = num(a.value) * Math.pow(1 + num(a.growth) / 100, yrs);
+      const pct = a.sellCostPct === '' || a.sellCostPct == null ? 2 : num(a.sellCostPct), sellCost = V * pct / 100;
+      const hasCost = !(a.cost === '' || a.cost == null), cost = hasCost ? num(a.cost) : 0;
+      if (!hasCost) out.warn.push(`${nm}: Anlagekosten (Kaufpreis + wertvermehrende Investitionen) fehlen. Der ganze Erlös wird als Gewinn besteuert (vorsichtig gerechnet).`);
+      const gain = Math.max(0, V - sellCost - cost), canton = a.ggCanton || P.canton;
+      const man = !(a.ggRate === '' || a.ggRate == null), rate = man ? num(a.ggRate) : E.ggstRate(canton), ggst = gain * rate / 100;
+      const net = V - rem - sellCost - ggst;
+      const mainsGone = mains.length > 0 && mains.every(m => sold0.has(m.id) || (saleOf(m) != null && saleOf(m) <= s));
+      const isHome = isMain(a) || (a.use === 'own' && mains.length > 0 && !mains.includes(a) && mainsGone);
+      let live = 0, liveNote = '';
+      if (isHome) {
+        const other = immos.some(q => q !== a && !sold0.has(q.id) && (saleOf(q) == null || saleOf(q) > s));
+        const after = a.liveAfter || 'rent';
+        if (after === 'other' && other) liveNote = 'Wohnen in der behaltenen Liegenschaft';
+        else {
+          live = num(a.liveCost);
+          if (after === 'other') out.warn.push(`${nm}: «Andere Immobilie behalten» gewählt, es bleibt aber keine andere Liegenschaft im Besitz. Bitte Wohnkosten erfassen.`);
+          if (live <= 0) out.warn.push(`${nm}: Wohnkosten nach dem Verkauf fehlen. Ohne diese Angabe ist das Ergebnis zu günstig.`);
+          liveNote = { rent: 'Miete', betreut: 'Betreutes Wohnen', pflege: 'Pflegeheim', other: 'Wohnkosten' }[after] || 'Wohnkosten';
+        }
+      }
+      const saveM = (intY + num(a.saveYear)) / 12, rentM = a.use === 'rent' ? num(a.rent) / 12 : 0;
+      for (let k = 0; k < years; k++) {
+        const f = Math.max(0, Math.min(1, k + 1 - t));
+        out.dB[k] += (live - saveM) * f; out.dInc[k] -= rentM * f;
+      }
+      out.lumps.push({ t: tIdx, v: net, age: s, name: nm });
+      out.ev.push({ t, age: s, name: nm, V, rem, sellCost, gain, rate, ggst, net, saveM, liveM: live, liveNote, rentM, canton, verified: !man && (E.GGST[canton] || [0, 0])[1] === 1, man, hasCost });
+    });
+    out.ev.sort((a, b) => a.t - b.t);
+    return out;
+  };
+
 
   // Säule 3a: 'amo' = verpfändet/gebunden, dient nur zur Amortisation; 'invest' = als Kapital verfügbar
   E.s3aMode = function (S, sc) {
@@ -1463,11 +1563,13 @@ const MP_PORT = [
       <div class="card"><h2>Persönliche Angaben</h2>
         <div class="fgrid">
           ${inp('Name / Bezeichnung (optional)', 'profile', null, 'name', P.name, { type: 'text' })}
-          ${inp('Alter heute (Hauptperson)', 'profile', null, 'age', P.age, { suf: 'Jahre' })}
+          ${inp('Geburtsmonat Person 1 (optional)', 'profile', null, 'birth1', P.birth1 || '', { type: 'month', hint: 'Monat und Jahr; setzt das Alter automatisch.' })}
+          ${inp('Alter heute (Hauptperson)', 'profile', null, 'age', P.age, { suf: 'Jahre', dis: E.ymOk(P.birth1) })}
           ${inp('Pensionierungsalter', 'profile', null, 'retireAge', P.retireAge, { suf: 'Jahre' })}
           ${inp('Planungshorizont bis Alter', 'profile', null, 'lifeAge', P.lifeAge, { suf: 'Jahre', hint: 'Kapital soll bis dahin reichen' })}
           ${inp('Zivilstand', 'profile', null, 'civil', P.civil, { type: 'select', opts: [['single', 'Alleinstehend / ledig / geschieden / verwitwet'], ['married', 'Verheiratet'], ['divorcing', 'In Scheidung (wird wie alleinstehend gerechnet)'], ['partnership', 'Eingetragene Partnerschaft'], ['concubinage', 'Konkubinat (getrennt veranlagt)']], hint: P.civil === 'divorcing' ? 'Steuern und AHV werden wie bei Alleinstehenden gerechnet. Tragen Sie die PK nach der Teilung ein und erfassen Sie erwartete Auszahlungen unter «Vermögen» als «Auszahlung in Folge Scheidung».' : undefined })}
-          ${inp('Alter Partner/in (optional)', 'profile', null, 'partnerAge', P.partnerAge, { suf: 'Jahre' })}
+          ${inp('Geburtsmonat Person 2 (optional)', 'profile', null, 'birth2', P.birth2 || '', { type: 'month', hint: 'Monat und Jahr; bestimmt den AHV-Beginn von Person 2.' })}
+          ${inp('Alter Partner/in (optional)', 'profile', null, 'partnerAge', P.partnerAge, { suf: 'Jahre', dis: E.ymOk(P.birth2) })}
           ${inp('Konfession (Kirchensteuer)', 'profile', null, 'confession', P.confession, { type: 'select', opts: [['none', 'Keine / andere'], ['ref', 'Reformiert'], ['rk', 'Römisch-katholisch'], ['ck', 'Christkatholisch']] })}
         </div></div>
       <div class="card"><h2>Wohnort (für die Steuerberechnung)</h2>
@@ -1513,7 +1615,7 @@ const MP_PORT = [
         (a.use === 'rent' ? I('Netto-Mieteinnahmen p. a.', 'rent', { suf: 'CHF' }) : I('Eigenmietwert p. a.', 'emw', { suf: 'CHF', hint: 'Entfällt ab Systemwechsel (siehe Annahmen)' })) +
         I('Wertentwicklung p. a.', 'growth', { suf: '%' }) +
         I('Unterhaltssatz dieser Liegenschaft', 'upkeepRate', { suf: '% v. Verkehrswert', hint: 'Leer = allgemeiner Satz (Annahmen). Wirkt nur bei Unterhalt-Basis «Verkehrswert».' }) +
-        inp('Bleibt in Variante E im Besitz (wird dort nicht verkauft)', 'assets', a.id, 'keepE', !!a.keepE, { type: 'check' });
+        inp('Bleibt in Variante E im Besitz (wird dort nicht verkauft)', 'assets', a.id, 'keepE', !!a.keepE, { type: 'check' }) + saleFields(a);
       else body = I('Wert heute', 'value', { suf: 'CHF' }) + I('Wertentwicklung p. a. bis Pensionierung', 'growth', a.type === 'wp' && pfOn('depot') ? { suf: '%', dis: true, hint: 'Aus Portfolio ' + pfName(S.inv.eff.act) + ' (Tab 9)' } : { suf: '%' }) +
         (T.liquid ? inp('Für Entnahme im Ruhestand verfügbar', 'assets', a.id, 'avail', a.avail !== false, { type: 'check' }) : (['fz', 'geschaeft', 'uebrig'].includes(a.type) ? inp('Als Kapital im Ruhestand verfügbar (z. B. Verkauf)', 'assets', a.id, 'avail', a.avail === true, { type: 'check' }) : '')) +
         (a.type === 's3a' ? inp('Verpfändet (Hypothek): dient nur der Amortisation, sonst nicht investierbar', 'assets', a.id, 'pledged', !!a.pledged, { type: 'check' }) : '');
@@ -1644,7 +1746,9 @@ const MP_PORT = [
       <div class="card"><h2>AHV</h2>
         <div class="fgrid">
           ${inp('AHV-Altersrente Person 1', 'pension', null, 'ahv1', A.ahv1, { suf: 'CHF / Monat', hint: `Maximalrente aktuell ${f0(G.ahvMax)} / Monat (13 Auszahlungen). Genaue Rente via Rentenvorausberechnung (ahv-iv.ch).` })}
-          ${married ? inp('AHV-Altersrente Person 2', 'pension', null, 'ahv2', A.ahv2, { suf: 'CHF / Monat', hint: 'Ehepaare: Summe auf 150 % der Maximalrente plafoniert.' }) : ''}
+          ${married ? inp('AHV Person 2: Betrag bis zur Ehepaarrente', 'pension', null, 'ahv2', A.ahv2, { suf: 'CHF / Monat', hint: 'Betrag, der zu Ihrer Rente hinzukommt (Summe auf 150 % der Maximalrente plafoniert). Beispiel: 1\u2019350 für den Teilanteil bis zur Ehepaarrente.' }) : ''}
+          ${married ? inp('AHV-Alter Person 2', 'pension', null, 'ahv2Age', A.ahv2Age === undefined || A.ahv2Age === '' ? 65 : A.ahv2Age, { suf: 'Jahre', hint: 'Referenzalter 65; bestimmt zusammen mit dem Geburtsmonat den Beginn.' }) : ''}
+          ${married ? inp('Beginn AHV Person 2 manuell (optional)', 'pension', null, 'ahv2Start', A.ahv2Start || '', { type: 'month', hint: 'Überschreibt die automatische Berechnung.' }) : ''}
         </div><div id="v-sum" class="note"></div></div>
       <div class="card"><div class="row between wrap"><h2>Weitere Einkünfte</h2><button class="btn pri" data-act="inc-add">+ Hinzufügen</button></div>
         <p class="muted">Z. B. Nebenerwerb, Leibrenten, Lebensversicherungsrenten, Erträge aus Anwartschaften/Beteiligungen. Mieteinnahmen erfassen Sie direkt bei der Liegenschaft. <b>Pensionskassenrenten</b> stammen aus den PK-Positionen unter «Vermögen».</p>
@@ -1658,7 +1762,8 @@ const MP_PORT = [
   }
   function vSum() {
     const el = $('#v-sum'); if (!el) return;
-    el.innerHTML = `AHV total p. a.: <b>${chf(E.ahvYearly(S))}</b> (${chf(E.ahvYearly(S) / 12)} / Monat im Durchschnitt)`;
+    const tm = E.timing(S), full = E.ahvYearly(S, true), p1 = E.ahvYearly(S);
+    el.innerHTML = `AHV total p. a. (beide Personen): <b>${chf(full)}</b> (${chf(full / 12)} / Monat)` + (tm.t2 > 0 ? `<br>Zur Pensionierung: <b>${chf(p1 / 12)}</b> / Monat (nur Person 1). <b>AHV Person 2 beginnt ${E.dateLabel(S, tm.t2)}</b> (${tm.t2.toFixed(1).replace('.', ',')} Jahre nach der Pensionierung): +${chf((full - p1) / 12)} / Monat.` : '');
   }
 
   /* ================= SZENARIEN ================= */
@@ -2040,13 +2145,13 @@ const MP_PORT = [
     const N = Math.max(1, Math.round(pv(EN.years, Math.max(1, num(P.lifeAge) - num(P.retireAge)))));
     const zN = (1 + num(EN.ret) / 100) / (1 + num(EN.infl) / 100) - 1, dyn = 0, restK = num(EN.rest);
     const tgtM = pv(EN.target, r.need / 12), incM = pv(EN.income, r.fixedIn / 12), K0 = entK0(EN, r);
-    const capM = (z, K) => E.withdrawal(K, z, 0, N, restK);
-    const gapM = Math.max(0, tgtM - incM);
-    const laterE = (r.erbeLater || []).map(x => ({ t: Math.max(0, Math.round(x.age - num(P.retireAge))), v: x.v, age: x.age })).filter(x => x.t < N);
+    const capM = (z, K) => entMaxTot(K, z, N, restK, incEB) - inc0B;
+    const SLB = E.sales(S, sel.s, r, N), incYB = entInc(sel.s, incM, N, SLB.dInc), incEB = incYB.map((v, i) => v - SLB.dB[i]), WyB = incEB.map(v => Math.max(0, tgtM - v)), evB = entEv(incEB), gapM = WyB[0], inc0B = incYB[0];
+    const laterE = (r.erbeLater || []).map(x => ({ t: Math.max(0, Math.round(x.age - num(P.retireAge))), v: x.v, age: x.age })).filter(x => x.t < N).concat(SLB.lumps);
     const pvE = z => laterE.reduce((s, x) => s + x.v / Math.pow(1 + z, x.t), 0);
     const base = capM(zN, K0 + pvE(zN)), lo = capM(zN - 0.01, K0 + pvE(zN - 0.01)), hi = capM(zN + 0.01, K0 + pvE(zN + 0.01));
-    const needK = E.capitalNeeded(gapM, zN, 0, N, restK);
-    let lastsT = null; { const f = 1 + zN * 6.5 / 12; let B = K0; for (let t = 0; t < N; t++) { B += laterE.filter(x => x.t === t).reduce((s, x) => s + x.v, 0); const end = B * (1 + zN) - 12 * gapM * f; if (end < 0) { lastsT = t + (B > 0 ? B * (1 + zN) / (12 * gapM * f) : 0); break; } B = end; } }
+    const needK = evB ? entNeedK(WyB, zN, N, restK) : E.capitalNeeded(gapM, zN, 0, N, restK);
+    let lastsT = null; { const f = 1 + zN * 6.5 / 12; let B = K0; for (let t = 0; t < N; t++) { B += laterE.filter(x => x.t === t).reduce((s, x) => s + x.v, 0); const end = B * (1 + zN) - 12 * WyB[t] * f; if (end < 0) { lastsT = t + (B > 0 && WyB[t] > 0 ? B * (1 + zN) / (12 * WyB[t] * f) : 0); break; } B = end; } }
     const lastsAge = lastsT == null ? null : num(P.retireAge) + lastsT;
     const L = k => O.all[k] || { K: 0, maxBe: 0, diffBe: 0, mBe: 0 };
     const lvlOf = (ok, warn) => ok ? 'good' : warn ? 'mid' : 'bad';
@@ -2254,7 +2359,7 @@ const MP_PORT = [
     acts.push('<b>Regelmässig prüfen:</b> mindestens jährlich sowie bei grösseren Ereignissen (Zinssprung, Erbe, Verkauf, Gesundheit).');
     out.push(`<div class="card bsec"><h2>7 · Fazit &amp; nächste Schritte</h2>${li(acts)}<p class="muted">Hinweis: Alle Aussagen beruhen auf Ihren Annahmen und vereinfachten Modellen. Sie ersetzen keine individuelle Beratung durch Bank, Steuer- oder Vorsorgespezialisten.</p></div>`);
     el.innerHTML = mixNote() + out.join('');
-    const path = []; { const f = 1 + zN * 6.5 / 12; let Bk = K0; for (let t = 0; t < N; t++) { Bk += laterE.filter(x => x.t === t).reduce((s, x) => s + x.v, 0); path.push({ age: num(P.retireAge) + t, v: Bk }); Bk = Math.max(0, Bk * (1 + zN) - 12 * gapM * f); } path.push({ age: num(P.retireAge) + N, v: Bk }); }
+    const path = []; { const f = 1 + zN * 6.5 / 12; let Bk = K0; for (let t = 0; t < N; t++) { Bk += laterE.filter(x => x.t === t).reduce((s, x) => s + x.v, 0); path.push({ age: num(P.retireAge) + t, v: Bk }); Bk = Math.max(0, Bk * (1 + zN) - 12 * WyB[t] * f); } path.push({ age: num(P.retireAge) + N, v: Bk }); }
     BE = { sel, r, s, O, R, K0, tgtM, incM, gapM, base, lo, hi, needK, lastsAge, N, zN, yrs, overall, tCls, cCls, names, secs, acts, cover, path, hasHypo, hasErbe, erbeLtr, taxShare, laterE };
   }
 
@@ -2495,21 +2600,21 @@ const MP_PORT = [
     const target = pv(N.target, r.need / 12), income = pv(N.income, r.fixedIn / 12), K0 = entK0(N, r);
     const years = Math.max(1, Math.round(pv(N.years, Math.max(1, num(P.lifeAge) - num(P.retireAge)))));
     const z = (1 + num(N.ret) / 100) / (1 + num(N.infl) / 100) - 1, rest = num(N.rest);
-    const W = Math.max(0, target - income);
-    const later = (r.erbeLater || []).map(x => ({ t: Math.max(0, Math.round(x.age - num(P.retireAge))), v: x.v, age: x.age, name: x.name })).filter(x => x.t < years);
+    const SL = E.sales(S, sel.s, r, years), incY = entInc(sel.s, income, years, SL.dInc), incE = incY.map((v, i) => v - SL.dB[i]), Wy = incE.map(v => Math.max(0, target - v)), W = Wy[0], ev = entEv(incE), income0 = incY[0], evs = entEvents(sel.s, years, SL), hasB = SL.dB.some(v => Math.abs(v) > 0.005);
+    const later = (r.erbeLater || []).map(x => ({ t: Math.max(0, Math.round(x.age - num(P.retireAge))), v: x.v, age: x.age, name: x.name })).filter(x => x.t < years).concat(SL.lumps.map(x => Object.assign({}, x, { name: 'Verkaufserlös ' + x.name })));
     const pvIn = later.reduce((s, x) => s + x.v / Math.pow(1 + z, x.t), 0), K0e = K0 + pvIn;
-    const maxM = E.withdrawal(K0e, z, 0, years, rest);
+    const totalM = entMaxTot(K0e, z, years, rest, incE), maxM = totalM - income0;
     const f = 1 + z * 6.5 / 12; let B = K0; const rows = []; let depl = null;
     for (let t = 0; t < years; t++) {
       B += later.filter(x => x.t === t).reduce((s, x) => s + x.v, 0);
-      const ret = B * z, wd = Math.min(12 * W * f, Math.max(0, B + ret)), end = B * (1 + z) - 12 * W * f;
-      rows.push({ t, age: num(P.retireAge) + t, start: B, ret, wd: 12 * W, end });
-      if (end < 0 && depl == null) depl = t + (B > 0 ? B * (1 + z) / (12 * W * f) : 0);
+      const ret = B * z, end = B * (1 + z) - 12 * Wy[t] * f;
+      rows.push({ t, age: num(P.retireAge) + t, start: B, ret, wd: 12 * Wy[t], inc: incY[t], bud: target + SL.dB[t], end });
+      if (end < 0 && depl == null) depl = t + (B > 0 && Wy[t] > 0 ? B * (1 + z) / (12 * Wy[t] * f) : 0);
       B = end; if (B < -1e9) break;
     }
     const endB = rows.length ? rows[rows.length - 1].end : K0;
     const ok = endB >= rest - 1 && depl == null;
-    const needK = E.capitalNeeded(W, z, 0, years, rest), shortK = Math.max(0, needK - K0e), shortM = Math.max(0, W - maxM);
+    const needK = ev ? entNeedK(Wy, z, years, rest) : E.capitalNeeded(W, z, 0, years, rest), shortK = Math.max(0, needK - K0e), shortM = Math.max(0, W - maxM);
     const lastsAge = depl == null ? null : num(P.retireAge) + depl;
     // Ampel: grün = gedeckt, orange = knapp (Reserve < 10 % des Kapitalbedarfs), rot = nicht gedeckt
     let lvl, head, txt;
@@ -2525,17 +2630,17 @@ const MP_PORT = [
       lvl = 'good'; head = 'Finanzierung gesichert';
       txt = `Das Zielbudget von CHF ${f0(target)} pro Monat ist über ${years} Jahre finanzierbar. Das Kapital beträgt am Ende rund CHF ${f0(Math.max(endB, 0))} (in heutiger Kaufkraft); die Reserve gegenüber dem Kapitalbedarf liegt bei CHF ${f0(K0e - needK)}.`;
     }
-    const tcls = maxM + income >= target ? 'ok' : (maxM + income >= target * 0.9 ? 'amber' : 'no');
+    const tcls = totalM >= target ? 'ok' : (totalM >= target * 0.9 ? 'amber' : 'no');
     el.innerHTML = `<div class="card"><div class="tiles">
-        <div class="tile"><span>Benötigte Entnahme pro Monat</span><b>${chf(W)}</b><span>Zielbudget ${f0(target)} – Renten/Einkünfte ${f0(income)}</span></div>
+        <div class="tile"><span>Benötigte Entnahme pro Monat</span><b>${chf(W)}</b><span>Zielbudget ${f0(target)} – Renten/Einkünfte ${f0(income0)}${ev ? ' (zu Beginn)' : ''}</span></div>
         <div class="tile"><span>Maximal mögliche Entnahme aus dem Kapital pro Monat</span><b>${chf(maxM)}</b><span>${years} Jahre, Restkapital ${f0(rest)}</span></div>
-        <div class="tile ${tcls}"><span>Maximal mögliches Gesamteinkommen pro Monat</span><b>${chf(maxM + income)}</b><span>Entnahme + Renten/Einkünfte · Ziel ${f0(target)}</span></div>
+        <div class="tile ${tcls}"><span>Maximal mögliches Gesamteinkommen pro Monat</span><b>${chf(totalM)}</b><span>Entnahme + Renten/Einkünfte${ev ? ' (zu Beginn)' : ''} · Ziel ${f0(target)}</span></div>
         <div class="tile"><span>Startkapital</span><b>${chf(K0)}</b><span>Kapitalbedarf ${chf(needK)}</span></div></div>
-        <div class="verdict ${lvl}"><b>${head}.</b> ${txt}${later.length ? ` <i>Berücksichtigt: ${later.map(x => `${esc(x.name)} ${chf(x.v)} mit Alter ${x.age}`).join(', ')} (erst ab diesem Zeitpunkt verfügbar; vorher nicht eingerechnet).</i>` : ''}</div></div>
+        <div class="verdict ${lvl}"><b>${head}.</b> ${txt}${later.length ? ` <i>Berücksichtigt: ${later.map(x => `${esc(x.name)} ${chf(x.v)} mit Alter ${x.age}`).join(', ')} (erst ab diesem Zeitpunkt verfügbar; vorher nicht eingerechnet).</i>` : ''}${evs.length ? `<br><i>Zeitlicher Verlauf der festen Einkünfte: ${evs.map(x => x.txt).join('; ')}. Die Entnahme aus dem Kapital sinkt bzw. steigt entsprechend (Steuern sind im Zielbudget als konstant angenommen).</i>` : ''}</div>${entSaleBox(SL)}</div>
       <div class="card"><div class="row between wrap gap"><h3 style="margin:0">Vermögensentwicklung</h3><div class="fld" style="min-width:230px">${inp('Y-Achse', 'entn', null, 'yAxis', N.yAxis || 'lin0', { type: 'select', opts: [['lin0', 'Linear, ab 0'], ['lin', 'Linear, automatischer Bereich'], ['log', 'Logarithmisch'], ['pct', 'In % des Startkapitals']] }).replace('<div class="fld ">', '<div>')}</div></div><div class="chartbox tall" style="margin-top:10px"><canvas id="c-ent"></canvas></div></div>
       <div id="en-cmp"></div>
-      <div class="card"><details class="fold" id="en-years" ${N.yearsClosed ? '' : 'open'}><summary><h3>Jahresübersicht</h3></summary><div class="tblwrap"><table class="rt"><thead><tr><th>Jahr</th><th>Alter</th><th>Kapital Jahresbeginn</th><th>Rendite</th><th>Entnahme</th><th>Kapital Jahresende</th></tr></thead><tbody>
-        ${rows.map(x => `<tr><td>${x.t + 1}</td><td>${x.age}</td><td>${f0(x.start)}</td><td>${f0(x.ret)}</td><td>${f0(x.wd)}</td><td class="${x.end < 0 ? 'neg' : ''}">${f0(x.end)}</td></tr>`).join('')}</tbody></table></div>
+      <div class="card"><details class="fold" id="en-years" ${N.yearsClosed ? '' : 'open'}><summary><h3>Jahresübersicht</h3></summary><div class="tblwrap"><table class="rt"><thead><tr><th>Jahr</th><th>Alter</th><th>Kapital Jahresbeginn</th><th>Rendite</th>${hasB ? '<th>Budget / Mt</th>' : ''}${ev ? '<th>Feste Einkünfte / Mt</th>' : ''}<th>Entnahme</th><th>Kapital Jahresende</th></tr></thead><tbody>
+        ${rows.map(x => `<tr><td>${x.t + 1}</td><td>${x.age}</td><td>${f0(x.start)}</td><td>${f0(x.ret)}</td>${hasB ? `<td>${f0(x.bud)}</td>` : ''}${ev ? `<td>${f0(x.inc)}</td>` : ''}<td>${f0(x.wd)}</td><td class="${x.end < 0 ? 'neg' : ''}">${f0(x.end)}</td></tr>`).join('')}</tbody></table></div>
         <p class="muted small">Kaufkraft von heute; reale Rendite ${(z * 100).toFixed(2)} % p. a. Entnahme monatlich im Voraus. Steuern sind im Zielbudget enthalten (Szenario-Berechnung).</p></details></div>`;
     const yMode = N.yAxis || 'lin0';
     const vals = [K0, ...rows.map(x => Math.max(0, x.end))].map(Math.round);
@@ -2638,7 +2743,7 @@ const MP_PORT = [
     return { n: rows.length, wsum: tot, gross, ter, tc, sigma, drag, mu, g, net: g, eq: (wc.equity || 0) * 100, wc };
   }
   function pfSync() {
-    if (!S || !S.inv) return; pfEnsure();
+    if (!S || !S.inv) return; pfEnsure(); syncBirth();
     const I = S.inv; I.eff = null;
     if (I.act === 'A' || I.act === 'B' || I.act === 'C') {
       const st = pfStats(I.act);
@@ -2872,17 +2977,80 @@ const MP_PORT = [
     { id: 'rates', name: 'Zinsanstieg', desc: 'Obligationen −8 %, Aktien −8 %, Immobilien −10 %, Mischfonds −6 % im ersten Jahr', yrs: [{ bond: -8, equity: -8, reit: -10, mixed: -6 }] }
   ];
   // Deterministischer Pfad: rpAt(t) = nominale Portfoliorendite im Jahr t; Cash-Reserve (bk Jahre) und flexibles Budget (-10 % in Verlustjahren) optional
+  // Eingabefelder «Späterer Verkauf» je Liegenschaft (Tab Vermögen)
+  function saleFields(a) {
+    const P = S.profile, I = (l, k, o) => inp(l, 'assets', a.id, k, a[k] == null ? '' : a[k], o);
+    const open = a.saleAge !== '' && a.saleAge != null, can = a.ggCanton || P.canton, gg = E.GGST[can] || [15, 0], own = a.use === 'own';
+    return `<div class="fld" style="grid-column:1/-1"><details class="fold" ${open ? 'open' : ''}><summary><b>Späterer Verkauf (nach der Pensionierung)</b> <span class="muted small">wirkt im Entnahmeplan, Vergleich und in der Beurteilung</span></summary>
+      <div class="fgrid" style="margin-top:8px">
+      ${I('Verkauf im Alter (Hauptperson)', 'saleAge', { suf: 'Jahre', hint: 'Leer = kein Verkauf. Mindestens Pensionierungsalter.' })}
+      ${I('Lage der Liegenschaft (Kanton)', 'ggCanton', { type: 'select', opts: [['', 'Wohnkanton (' + P.canton + ')'], ...Object.entries(E.CANTONS).map(([k, v]) => [k, v])] })}
+      ${I('Anlagekosten (Kaufpreis + wertvermehrende Investitionen)', 'cost', { suf: 'CHF', hint: 'Basis für den steuerbaren Gewinn.' })}
+      ${I('Verkaufskosten (Makler, Notar)', 'sellCostPct', { suf: '% v. Verkehrswert', ph: '2' })}
+      ${I('Grundstückgewinnsteuer: Satz manuell', 'ggRate', { suf: '%', ph: String(gg[0]), hint: `Leer = Richtsatz ${esc(can)} bei langer Haltedauer: <b>${gg[0]} %</b> ${gg[1] ? '(kantonaler Tarif)' : '(Näherung, bitte prüfen)'}` })}
+      ${I('Jährliche Kosten, die nach dem Verkauf entfallen', 'saveYear', { suf: 'CHF p. a.', hint: 'Unterhalt, Nebenkosten, Versicherungen laut Budget. Hypothekarzinsen werden aus den Krediten ergänzt (Hypothek mit dieser Liegenschaft verknüpfen).' })}
+      ${own ? I('Rolle der Liegenschaft', 'home', { type: 'select', opts: [['', 'automatisch (erste selbstbewohnte = Hauptwohnsitz)'], ['main', 'Hauptwohnsitz'], ['second', 'Zweit-/Ferienwohnung']] }) : ''}
+      ${own ? I('Wohnen nach dem Verkauf', 'liveAfter', { type: 'select', opts: [['rent', 'Miete'], ['betreut', 'Betreutes Wohnen'], ['pflege', 'Pflegeheim'], ['other', 'Andere Immobilie behalten']] }).replace('<option value="" ', '<option value="" ') : ''}
+      ${own ? I('Wohnkosten nach dem Verkauf', 'liveCost', { suf: 'CHF / Monat', hint: 'Miete, Betreutes Wohnen oder Pflegeheim. Entfällt bei «Andere Immobilie behalten». Gilt nur, wenn dies Ihr Wohnsitz ist.' }) : ''}
+      </div></details></div>`;
+  }
+  /* ---- Zeitverlauf der festen Einkünfte (AHV Person 2, Ab/Bis-Alter) ---- */
+  function syncBirth() {
+    const P = S.profile;
+    if (E.ymOk(P.birth1)) P.age = Math.floor(E.ageFrom(P.birth1) + 1e-9);
+    if (E.ymOk(P.birth2)) P.partnerAge = Math.floor(E.ageFrom(P.birth2) + 1e-9);
+  }
+  // feste Monatseinkünfte je Entnahmejahr
+  function entInc(sc, income, years, dInc) { return E.incomeDelta(S, sc, years).map((d, i) => Math.max(0, income + d + (dInc ? dInc[i] : 0))); }
+  const entEv = a => a.some(v => Math.abs(v - a[0]) > 0.005);
+  // Kapitalbedarf bei Monatslücken Wy[t] (gleiche Annahmen wie E.capitalNeeded: Entnahme monatlich im Voraus)
+  function entNeedK(Wy, z, years, rest) {
+    const f = 1 + z * 6.5 / 12; let s = rest / Math.pow(1 + z, years);
+    for (let t = 0; t < years; t++) s += 12 * f * Wy[t] / Math.pow(1 + z, t + 1);
+    return s;
+  }
+  // maximales Gesamteinkommen pro Monat (Startniveau), das das Kapital K0e über die Laufzeit trägt
+  function entMaxTot(K0e, z, years, rest, incY) {
+    if (!entEv(incY)) return E.withdrawal(K0e, z, 0, years, rest) + incY[0];
+    let lo = 0, hi = 1e6;
+    if (entNeedK(incY.map(i => Math.max(0, lo - i)), z, years, rest) > K0e) return lo;
+    for (let k = 0; k < 70; k++) { const m = (lo + hi) / 2; if (entNeedK(incY.map(i => Math.max(0, m - i)), z, years, rest) <= K0e) lo = m; else hi = m; }
+    return lo;
+  }
+  // Hinweise auf zeitliche Ereignisse (AHV Person 2, Einkünfte mit Ab/Bis-Alter)
+  function entEvents(sc, years, SL) {
+    const P = S.profile, r = num(P.retireAge), out = [], tm = E.timing(S), dA = (E.ahvYearly(S, true) - E.ahvYearly(S)) / 12;
+    if (dA > 0 && tm.t2 < years) out.push({ t: tm.t2, txt: `AHV Person 2 ab ${E.dateLabel(S, tm.t2)}: +${chf(dA)} pro Monat` });
+    (S.incomes || []).filter(i => !(sc && sc.incomeOff && sc.incomeOff.includes(i.id))).forEach(i => {
+      const from = num(i.fromAge, 0), to = (i.toAge === '' || i.toAge == null) ? Infinity : num(i.toAge), a = num(i.amount) / 12;
+      if (!a) return;
+      if (from > r && from - r < years) out.push({ t: from - r, txt: `${esc(i.name || 'Einkunft')} ab Alter ${from}: +${chf(a)} pro Monat` });
+      if (isFinite(to) && to >= r && to - r < years) out.push({ t: to - r, txt: `${esc(i.name || 'Einkunft')} bis Alter ${to}: −${chf(a)} pro Monat` });
+    });
+    if (SL) SL.ev.forEach(e => out.push({ t: e.t, txt: `Verkauf ${esc(e.name)} mit Alter ${e.age}: Netto-Erlös ${chf(e.net)}` + (e.saveM - e.liveM + 0 !== 0 ? `, Budget ${e.liveM - e.saveM > 0 ? '+' : '−'}${chf(Math.abs(e.liveM - e.saveM))} pro Monat` : '') + (e.rentM ? `, Mieteinnahmen −${chf(e.rentM)} pro Monat` : '') }));
+    return out.sort((a, b) => a.t - b.t);
+  }
+  // Detailbox zum Immobilienverkauf (Entnahmeplan)
+  function entSaleBox(SL) {
+    if (!SL || (!SL.ev.length && !SL.warn.length)) return '';
+    const pc = v => String(Math.round(v * 10) / 10).replace('.', ',') + ' %';
+    const rows = SL.ev.map(e => `<tr><td>${esc(e.name)}</td><td>${e.age}</td><td>${f0(e.V)}</td><td>${f0(-e.rem)}</td><td>${f0(-e.sellCost)}</td><td>${f0(e.gain)}</td><td>${pc(e.rate)}${e.man ? ' (manuell)' : e.verified ? '' : ' (Näherung)'}</td><td>${f0(-e.ggst)}</td><td><b>${f0(e.net)}</b></td><td>${f0(-e.saveM)}${e.liveM ? ' / +' + f0(e.liveM) : ''}${e.rentM ? ' / Miete −' + f0(e.rentM) : ''}</td></tr>`).join('');
+    return `<details class="fold" style="margin-top:10px" ${SL.warn.length ? 'open' : ''}><summary><b>Immobilienverkauf: Berechnung im Detail</b></summary>
+      ${SL.warn.length ? `<div class="verdict mid" style="margin:8px 0">${SL.warn.map(w => '⚠ ' + esc(w)).join('<br>')}</div>` : ''}
+      ${rows ? `<div class="tblwrap"><table class="rt"><thead><tr><th>Liegenschaft</th><th>Alter</th><th>Verkehrswert</th><th>Hypothek</th><th>Verkaufskosten</th><th>Gewinn</th><th>GGSt-Satz</th><th>GGSt</th><th>Netto-Erlös</th><th>Budget p. Mt: entfällt / neu</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="muted small">Verkehrswert real konstant ab Pensionierung (inkl. Wertentwicklung bis dahin). Grundstückgewinnsteuer (GGSt) = Gewinn × Satz bei langer Haltedauer; Steuern im Zielbudget, Eigenmietwert und Vermögenssteuer bleiben konstant. Die Sätze sind Richtwerte, verbindlich ist die Veranlagung der kantonalen Steuerverwaltung. Szenarien, Tragbarkeit, Steuern und Gesamtübersicht rechnen weiter mit dem Bestand bei Pensionierung.</p>` : ''}</details>`;
+  }
   function simPath(c, rpAt, bk, flex) {
-    const infl = c.infl, base = 12 * c.W * (1 + c.zf * 6.5 / 12), tgt = bk * base, rcR = (1 + c.rc) / (1 + infl);
-    let Bc = 0, Bp = c.K0; if (bk > 0) { Bc = Math.min(Bp, tgt); Bp -= Bc; }
+    const infl = c.infl, bA = c.bA, rcR = (1 + c.rc) / (1 + infl);
+    let Bc = 0, Bp = c.K0; if (bk > 0) { Bc = Math.min(Bp, bk * bA[0]); Bp -= Bc; }
     const path = [c.K0]; let depl = null, last = c.K0;
     for (let t = 0; t < c.years; t++) {
       Bp += c.laterAt[t] || 0;
-      const r = rpAt(t), need = base * (flex && r < 0 ? 0.9 : 1);
+      const r = rpAt(t), need = bA[t] * (flex && r < 0 ? 0.9 : 1);
       Bp *= (1 + r) / (1 + infl); Bc *= rcR;
       const s1 = Bp + Bc, x = Math.min(Bc, need); Bc -= x; Bp -= need - x;
       if (Bp < 0) { Bc += Bp; Bp = 0; }
-      if (bk > 0 && r > 0) { const add = Math.min(Bp, Math.max(0, tgt - Bc)); Bc += add; Bp -= add; }
+      if (bk > 0 && r > 0) { const add = Math.min(Bp, Math.max(0, bk * bA[t] - Bc)); Bc += add; Bp -= add; }
       const tot = Bc + Bp;
       if (tot < 0) { depl = t + (need > 0 ? Math.max(0, Math.min(1, s1 / need)) : 1); for (let u = t; u < c.years; u++) path.push(0); last = -1; break; }
       path.push(tot); last = tot;
@@ -2891,19 +3059,19 @@ const MP_PORT = [
   }
   // Monte-Carlo: N zufällige Marktverläufe (Normalverteilung der Jahresrendite mit Mittel mu und Schwankung sig)
   function mcRun(c, mu, sig, bk, flex) {
-    const N = MC_N, T = c.years, Z = pfZ(T).a, infl = c.infl, base = 12 * c.W * (1 + c.zf * 6.5 / 12), tgt = bk * base, rcR = (1 + c.rc) / (1 + infl);
+    const N = MC_N, T = c.years, Z = pfZ(T).a, infl = c.infl, bA = c.bA, rcR = (1 + c.rc) / (1 + infl), tgt0 = bk * bA[0];
     const tot = new Float32Array(N * (T + 1)); let okN = 0, ruinEarly = 0;
     for (let i = 0; i < N; i++) {
-      let Bp = c.K0, Bc = 0, ruined = false; if (bk > 0) { Bc = Math.min(Bp, tgt); Bp -= Bc; }
+      let Bp = c.K0, Bc = 0, ruined = false; if (bk > 0) { Bc = Math.min(Bp, tgt0); Bp -= Bc; }
       tot[i] = c.K0;
       for (let t = 0; t < T; t++) {
         Bp += c.laterAt[t] || 0;
         let r = mu + sig * Z[t * N + i]; if (r < -0.6) r = -0.6;
-        const need = base * (flex && r < 0 ? 0.9 : 1);
+        const need = bA[t] * (flex && r < 0 ? 0.9 : 1);
         Bp *= (1 + r) / (1 + infl); Bc *= rcR;
         const x = Math.min(Bc, need); Bc -= x; Bp -= need - x;
         if (Bp < 0) { Bc += Bp; Bp = 0; }
-        if (bk > 0 && r > 0) { const add = Math.min(Bp, Math.max(0, tgt - Bc)); Bc += add; Bp -= add; }
+        if (bk > 0 && r > 0) { const add = Math.min(Bp, Math.max(0, bk * bA[t] - Bc)); Bc += add; Bp -= add; }
         const tt = Bc + Bp;
         if (tt < 0) { ruined = true; if (t < T - Math.min(10, T)) ruinEarly++; break; }
         tot[(t + 1) * N + i] = tt;
@@ -2929,13 +3097,13 @@ const MP_PORT = [
     const target = pv(N.target, r.need / 12), income = pv(N.income, r.fixedIn / 12);
     const years = Math.max(1, Math.round(pv(N.years, Math.max(1, num(S.profile.lifeAge) - num(S.profile.retireAge)))));
     const ret = st ? eff.rates.entn : num(N.ret), infl = num(N.infl) / 100, z = (1 + ret / 100) / (1 + infl) - 1, rest = num(N.rest);
-    const W = Math.max(0, target - income);
-    const laterAt = new Array(years).fill(0), later = (r.erbeLater || []).map(x => ({ t: Math.max(0, Math.round(x.age - num(P.retireAge))), v: x.v })).filter(x => x.t < years);
+    const SL = E.sales(S, scn, r, years), incY = entInc(scn, income, years, SL.dInc), incE = incY.map((v, i) => v - SL.dB[i]), Wy = incE.map(v => Math.max(0, target - v)), W = Wy[0], ev = entEv(incE), income0 = incY[0];
+    const laterAt = new Array(years).fill(0), later = (r.erbeLater || []).map(x => ({ t: Math.max(0, Math.round(x.age - num(P.retireAge))), v: x.v })).filter(x => x.t < years).concat(SL.lumps);
     later.forEach(x => { laterAt[x.t] += x.v; });
     const K0e = K0 + later.reduce((s, x) => s + x.v / Math.pow(1 + z, x.t), 0);
-    const maxM = E.withdrawal(K0e, z, 0, years, rest), needK = E.capitalNeeded(W, z, 0, years, rest);
+    const totalM = entMaxTot(K0e, z, years, rest, incE), maxM = totalM - income0, needK = ev ? entNeedK(Wy, z, years, rest) : E.capitalNeeded(W, z, 0, years, rest);
     const tc = Math.max(0, num(I.tc)), cashA = pfAs('cash');
-    const c = { K0, W, years, rest, infl, zf: z, rc: Math.max(0, cashA.gross - cashA.ter - tc) / 100, laterAt };
+    const c = { K0, W: Math.max(...Wy), Wy, bA: Wy.map(w => 12 * w * (1 + z * 6.5 / 12)), years, rest, infl, zf: z, rc: Math.max(0, cashA.gross - cashA.ter - tc) / 100, laterAt };
     const base = simPath(c, () => ret / 100, 0, false);
     const bk = num(I.bk), flex = !!I.flex;
     let stress = null, mc = null, mu = null, sig = null;
@@ -2946,7 +3114,7 @@ const MP_PORT = [
       mu = (st.mu - num(I.hcEntn)) / 100; sig = st.sigma / 100;
       mc = mcRun(c, mu, sig, bk, flex);
     }
-    return { key: p, label: p === 'none' ? 'Manuelle Annahme' : pfName(p), st, rate: ret, K0, W, target, income, years, rest, maxM, totalM: maxM + income, needK, K0e, base, endB: base.end, ok: base.ok, depl: base.depl, c, mu, sig, stress, mc, cost: st ? K0 * (st.ter + st.tc) / 100 : null };
+    return { key: p, label: p === 'none' ? 'Manuelle Annahme' : pfName(p), st, rate: ret, K0, W, target, income: income0, years, rest, maxM, totalM, needK, K0e, base, endB: base.end, ok: base.ok, depl: base.depl, c, mu, sig, stress, mc, cost: st ? K0 * (st.ter + st.tc) / 100 : null };
   }
   function cmpModel() {
     const sel = entScenario(); if (!sel) return null;
@@ -3469,13 +3637,14 @@ const MP_PORT = [
     const tgt = el.dataset.id != null ? findList(sc, parseInt(el.dataset.id, 10)) : S[sc];
     if (!tgt) return;
     tgt[k] = v;
+    if (sc === 'profile' && (k === 'birth1' || k === 'birth2')) syncBirth();
     return { sc, k, tgt };
   }
   function afterChange(info, structural) {
     save();
     if (!info) return;
     const { sc, k } = info;
-    if (structural) { renderPage(curTab); return; }
+    if (structural || (sc === 'profile' && (k === 'birth1' || k === 'birth2'))) { renderPage(curTab); return; }
     if (curTab === 'budget') budgetSum();
     else if (curTab === 'profil') { if (k === 'plz') { const c = E.plzToCanton(S.profile.plz); if (c) { S.profile.canton = c; const sel = $('select[data-k="canton"]'); if (sel) sel.value = c; } } profilInfo(); }
     else if (curTab === 'vermoegen') assetSum();
@@ -3531,7 +3700,7 @@ const MP_PORT = [
       if (info.sc === 'entn' && info.k === 'startSc') { info.tgt.startSc = parseInt(info.tgt.startSc, 10) || 0; info.tgt.start = ''; save(); rEntn(); return; }
       if (info.sc === 'entn' && info.k === 'sc') { info.tgt.sc = parseInt(info.tgt.sc, 10) || 0; info.tgt.startSc = 0; info.tgt.start = ''; save(); rEntn(); return; }
       if (info.sc === 'inv' && info.k === 'ubsSel') { save(); ubsRender(); pfRefresh(); return; }
-      const structural = (info.sc === 'assets' && (info.k === 'use')) || (info.sc === 'profile' && info.k === 'civil') || (info.sc === 'budget' && false);
+      const structural = (info.sc === 'assets' && (info.k === 'use' || info.k === 'home')) || (info.sc === 'profile' && info.k === 'civil') || (info.sc === 'budget' && false);
       if (info.sc === 'profile' && info.k === 'canton') { afterChange(info, false); return; }
       if (info.sc === 'scenarios' && info.k === 'name') { afterChange(info, false); return; }
       afterChange(info, structural);
@@ -3866,7 +4035,7 @@ const MP_PORT = [
     applyTheme(); fill();
   }
   window.addEventListener('DOMContentLoaded', () => { initBg(); init(); LAY.init(); });
-  window.__RP = { get S() { return S; }, calc: (sc) => E.calc(S, sc), demo: () => { S = demoState(); save(); showTab('budget'); }, showTab };
+  window.__RP = { get S() { return S; }, calc: (sc) => E.calc(S, sc), E, demo: () => { S = demoState(); save(); showTab('budget'); }, showTab };
 })();
 </script>
 </body></html>
