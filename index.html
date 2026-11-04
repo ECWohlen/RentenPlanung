@@ -1435,13 +1435,14 @@ const MP_PORT = [
   const TABS = [
     ['start', 'Start', '⌂', '#2b59d9'], ['budget', 'Budget', '1', '#2a78d6'], ['profil', 'Profil & Wohnort', '2', '#1baf7a'], ['vermoegen', 'Vermögen', '3', '#008300'], ['kredite', 'Kredite', '4', '#e34948'],
     ['vorsorge', 'Vorsorge & Einkünfte', '5', '#8b4fb8'], ['szenarien', 'Szenarien & Tragbarkeit', '6', '#d9822b'], ['entnahme', 'Entnahmeplan', '7', '#4aa3b5'],
-    ['steuern', 'Steuern: Kapital vs. Rente', '8', '#c8453b'], ['anlage', 'Portfolio-Modelle', '9', '#4a3aa7'], ['kombi', 'Kombinationen', '◆', '#2a9d8f'], ['uebersicht', 'Gesamtübersicht', '★', '#185FA5'], ['beurteilung', 'Beurteilung', '✔', '#b0388a'], ['report', 'Management Report', '▤', '#1f3a5f'], ['settings', 'Annahmen & Daten', '⚙', '#6b6a64']
+    ['steuern', 'Steuern: Kapital vs. Rente', '8', '#c8453b'], ['anlage', 'Portfolio-Modelle', '9', '#4a3aa7'], ['uebersicht', 'Gesamtübersicht', '★', '#185FA5'], ['beurteilung', 'Beurteilung', '✔', '#b0388a'], ['report', 'Management Report', '▤', '#1f3a5f'], ['settings', 'Annahmen & Daten', '⚙', '#6b6a64']
   ];
   let curTab = 'budget';
   let BE = null;
   const charts = {};
   function showTab(t) {
     pfSync();
+    if (t === 'kombi') t = 'uebersicht';
     curTab = t; document.body.classList.toggle('tab-report', t === 'report'); document.body.classList.toggle('tab-start', t === 'start');
     $$('.tab').forEach(b => b.classList.toggle('on', b.dataset.t === t));
     $$('.page').forEach(p => p.classList.toggle('on', p.id === 'p-' + t));
@@ -1655,7 +1656,7 @@ const MP_PORT = [
   const KO_COL = ['#185FA5', '#2e9e6b', '#c8453b', '#d9822b', '#8b4fb8', '#1baf7a', '#4aa3b5', '#e87ba4', '#898781', '#4a3aa7', '#b0388a', '#7a9a1a'];
   function koScenario() {
     const R = scResults(); if (!R.length) return null;
-    return (S.koSc != null && R.find(x => x.s.id === S.koSc)) || R.reduce((x, y) => (y.r.surplus > x.r.surplus ? y : x));
+    return (S.ueSc != null && R.find(x => x.s.id === S.ueSc)) || R.reduce((x, y) => (y.r.surplus > x.r.surplus ? y : x));
   }
   function koSeed() {
     if (!Array.isArray(S.combos)) S.combos = [];
@@ -1665,16 +1666,16 @@ const MP_PORT = [
   const KO_VERB = { immo: 'verkaufen', liq: 'zum Kapital zählen', pk: 'als Kapital beziehen', s3a: 'zum Kapital zählen', erbe: 'erhalten' };
   function rKombi() {
     koSeed();
-    const sc = koScenario(), el = $('#p-kombi');
-    if (!sc) { el.innerHTML = '<div class="card"><h2>Kombinationen</h2><p class="muted">Bitte zuerst im Tab «Szenarien &amp; Tragbarkeit» ein Szenario anlegen.</p></div>'; return; }
+    const sc = koScenario(), el = $('#ue-kombi'); if (!el) return;
+    if (!sc) { el.innerHTML = ''; return; }
     const blocks = E.blocks(S, sc.s).filter(b => KO_VERB[b.kind]), R = scResults();
     const head = S.combos.map((c, i) => `<th class="kc"><span class="dot" style="background:${KO_COL[i % KO_COL.length]}"></span><input type="text" class="ko-name" data-ko-name="${c.id}" value="${esc(c.name)}"><br><button class="btn sm" data-act="ko-dup" data-id="${c.id}">Kopie</button> <button class="btn sm" data-act="ko-del" data-id="${c.id}">✕</button></th>`).join('');
     const rows = blocks.map(b => `<tr><td class="l"><b>${esc(b.name)}</b> <span class="verb">${KO_VERB[b.kind]}</span><small>${f0(b.v)} CHF${b.kind === 'immo' && b.linked ? ' · Hypothek ' + f0(b.linked) : ''}</small></td>
       ${S.combos.map(c => { const cur = ((c.modes && c.modes[b.key]) || b.def) === 'in'; return `<td class="ck"><input type="checkbox" data-ko-cell="${c.id}" data-ko-blk="${b.key}" ${cur ? 'checked' : ''}></td>`; }).join('')}</tr>`).join('');
-    el.innerHTML = `<div class="card"><h2>Kombinationen</h2>
-      <p class="muted"><b>So geht's:</b> Jede Spalte ist eine Kombination. Setzen Sie ein Häkchen, wenn in dieser Kombination getan wird, was in der Zeile steht (z. B. «Eigenheim verkaufen»). Ohne Häkchen bleibt es, wie es ist. Die Auswertung steht darunter.</p>
+    el.innerHTML = `<div class="card"><h2>Woraus besteht das Vermögen? Konstellationen vergleichen</h2>
+      <p class="muted">Zeigt, woraus sich das Kapital bei der Pensionierung zusammensetzt, je nachdem, was Sie tun (z. B. Eigenheim verkaufen, PK als Kapital beziehen, Erbe erhalten), und ob die Hypothek dann tragbar bleibt. <b>So geht's:</b> Jede Spalte ist eine Konstellation. Ein Häkchen heisst: in dieser Konstellation geschieht, was in der Zeile steht. Ohne Häkchen bleibt alles, wie es ist. Gilt für den Zeitpunkt der Pensionierung; ein späterer Verkauf mit Alter wird im Tab «Vermögen» erfasst und im Entnahmeplan gerechnet.</p>
       <div class="row gap wrap" style="margin:8px 0"><button class="btn sm pri" data-act="ko-add">+ Kombination</button><button class="btn sm" data-act="ko-gen" title="Bildet alle Möglichkeiten aus Verkauf der Liegenschaften und Erbe">Alle Möglichkeiten erzeugen</button>
-        <label class="small">Szenario <select id="ko-sc">${R.map(x => `<option value="${x.s.id}" ${x.s.id === sc.s.id ? 'selected' : ''}>${esc(x.s.name || 'Szenario')}</option>`).join('')}</select></label></div>
+        <span class="muted small">Szenario: <b>${esc(sc.s.name || 'Szenario')}</b> (Auswahl oben in der Übersicht)</span></div>
       <div class="tblwrap"><table class="rt ko"><thead><tr><th class="l">Baustein</th>${head}</tr></thead><tbody>${rows || '<tr><td class="muted">Noch keine Vermögenswerte erfasst.</td></tr>'}</tbody></table></div></div>
       <div id="ko-out"></div>`;
     koOut();
@@ -2499,6 +2500,7 @@ const MP_PORT = [
       }],
       options: { maintainAspectRatio: false, layout: { padding: { right: 130 } }, interaction: { mode: 'index', intersect: false }, scales: { y: { min: 0, beginAtZero: true, ticks: { callback: v => (v / 1e6).toFixed(1) + ' Mio' } } }, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${chf(c.raw)}` } } } }
     });
+    { let kb = $('#ue-kombi'); if (!kb) { kb = document.createElement('div'); kb.id = 'ue-kombi'; $('#p-uebersicht').appendChild(kb); } rKombi(); }
     drawChart('c-sc', {
       data: {
         labels: R.map(x => x.s.name), datasets: [
@@ -3278,7 +3280,7 @@ const MP_PORT = [
     report: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>'
   };
-  const NAV_GROUPS = [['', ['start']], ['Erfassen', ['budget', 'profil', 'vermoegen', 'kredite', 'vorsorge']], ['Planen', ['szenarien', 'entnahme', 'steuern', 'anlage', 'kombi']], ['Auswerten', ['uebersicht', 'beurteilung', 'report']], ['System', ['settings']]];
+  const NAV_GROUPS = [['', ['start']], ['Erfassen', ['budget', 'profil', 'vermoegen', 'kredite', 'vorsorge']], ['Planen', ['szenarien', 'entnahme', 'steuern', 'anlage']], ['Auswerten', ['uebersicht', 'beurteilung', 'report']], ['System', ['settings']]];
   const svg = d => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
   function wrapContent() {
     if ($('#content')) return;
@@ -3357,8 +3359,8 @@ const MP_PORT = [
     const P = S.profile, sub = `${P.name ? esc(P.name) + ' · ' : ''}Alter ${num(P.age)} · Pensionierung mit ${num(P.retireAge)} · Planungshorizont ${num(P.lifeAge)}${P.canton ? ' · Kanton ' + esc(P.canton) : ''}`;
     const komRel = S.assets.some(a => a.type === 'immo' || E.isInh(a.type));   // Kombinationen nur sinnvoll bei Liegenschaft oder Erbe
     const have = k => ({ budget: S.budget.length > 0, profil: !!P.canton, vermoegen: S.assets.length > 0, kredite: S.debts.length > 0, vorsorge: S.assets.some(a => a.type === 'pk') || S.incomes.length > 0 || num(S.pension.ahv1) > 0, szenarien: S.scenarios.length > 0, anlage: S.inv.act !== 'none', kombi: !komRel || (Array.isArray(S.combos) && S.combos.length > 0), settings: S.goals.length > 0 })[k];
-    const chk = [['budget', 'Budget erfasst'], ['profil', 'Profil und Wohnort'], ['vermoegen', 'Vermögen erfasst'], ['kredite', 'Kredite (falls vorhanden)'], ['vorsorge', 'Vorsorge und Einkünfte'], ['szenarien', 'Szenario angelegt'], ['anlage', 'Portfolio gewählt'], ['kombi', komRel ? 'Kombinationen angelegt' : 'Kombinationen (nicht nötig)']]
-      .map(([k, l]) => { const d = have(k); return `<a class="${d ? 'd' : 'o'}" data-go="${k}"><i>${d ? '✓' : '·'}</i>${l}</a>`; }).join('');
+    const chk = [['budget', 'Budget erfasst'], ['profil', 'Profil und Wohnort'], ['vermoegen', 'Vermögen erfasst'], ['kredite', 'Kredite (falls vorhanden)'], ['vorsorge', 'Vorsorge und Einkünfte'], ['szenarien', 'Szenario angelegt'], ['anlage', 'Portfolio gewählt'], ['kombi', komRel ? 'Konstellationen angelegt (Übersicht)' : 'Konstellationen (nicht nötig)']]
+      .map(([k, l]) => { const d = have(k); return `<a class="${d ? 'd' : 'o'}" data-go="${k === 'kombi' ? 'uebersicht' : k}"><i>${d ? '✓' : '·'}</i>${l}</a>`; }).join('');
     const quick = `<div class="st-quick"><a data-go="entnahme"><b>Entnahmeplan und Vergleich</b><span>Kapitalverlauf, Strategien, Stresstests</span></a><a data-go="anlage"><b>Portfolio-Modelle</b><span>Portfolios A, B, C und Auswahl</span></a><a data-go="beurteilung"><b>Beurteilung</b><span>Chancen, Risiken, Lebensstil</span></a><a data-go="report"><b>Management Report</b><span>Drucken oder als PDF speichern</span></a></div>`;
     const sel = entScenario(); let M = null; try { M = sel ? cmpModel() : null; } catch (e) { M = null; }
     let top;
